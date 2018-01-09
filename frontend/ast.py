@@ -216,8 +216,8 @@ class Node(object):
 # AST node definitions have `children` and `types` attributes which serve two
 # purposes: first, they tell the parent class `Node` to which attributes
 # constructor arguments must be assigned. For instance, `Program` only has a
-# `declarations` child, which means you can construct a program node by calling
-# `Program([decl1, decl2])`.
+# `decls` child, which means you can construct a program node by calling
+# `Program([decl1, decl2, ...])`.
 #
 # Second, the type of the attribute is 'Declaration+'. This is used during AST
 # verification. Verification is done after each phase to check if a bug in the

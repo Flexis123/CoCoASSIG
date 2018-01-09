@@ -30,9 +30,6 @@ class TypeChecker(ASTVisitor):
         if operator.is_logical():
             return [self.tbool]
 
-        if operator.op == '%':
-            return [self.tchar, self.tint]
-
         if operator.is_arithmetic() or operator.is_relational():
             return [self.tchar, self.tint]
 

@@ -58,9 +58,9 @@ source file. Run the following command to see its options:
 
 Tests if it works by compiling a simple source file:
 
-    $ frontend -v tests/hello.c
-    $ make tests/hello.exe
-    $ tests/hello.exe
+    $ frontend -v examples/hello.fc -I runtime
+    $ clang -o examples/hello examples/hello.ll
+    $ examples/hello
     Hello, World!
 
 When you are done with your work, or you want access to your original system's

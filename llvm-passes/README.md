@@ -99,7 +99,7 @@ so you can invoke them if you want.
 
 An example usage of `myopt` could be as follows:
 
-    $ myopt foo.fc -coco-constprop -coco-adce
+    $ myopt foo.ll -coco-constprop -coco-adce
 
 This will show the resulting IR on screen. Any pass can be invoked like this,
 and `myopt` will execute them in the specified order. A single pass can occur

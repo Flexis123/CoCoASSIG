@@ -44,7 +44,24 @@
 
 using namespace llvm;
 
+/*
+ * Returns whether a given function should be instrumented by your passes. This
+ * is primarily used to exclude helper function from being instrumented.
+ * For instance, when using a helper function to perform bounds checks, you do
+ * not want that function itself to receive bounds checks.
+ */
 bool shouldInstrument(Function *F);
+
+/*
+ * Adds new parameters (of given types) to a function. Since you cannot change
+ * function signatures in LLVM, this function instead creates a *new* function,
+ * a clone of the old one, with the updated signature. The newly created
+ * function is returned, and all added parameters (the argument variables) are
+ * returned in the provided NewArgs list.
+ *
+ * The newly created parameters (in NewArgs) will not have names. You can
+ * manually set these using setName.
+ */
 Function *addParamsToFunction(Function *F, ArrayRef<Type*> NewParamTypes,
         SmallVectorImpl<Argument*> &NewArgs);
 

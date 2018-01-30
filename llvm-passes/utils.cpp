@@ -13,6 +13,8 @@ Function *addParamsToFunction(Function *F, ArrayRef<Type*> NewParamTypes,
         SmallVectorImpl<Argument*> &NewArgs) {
     if (NewParamTypes.size() == 0)
         ERROR("addParamsToFunction called without new params to add");
+    if (NewArgs.size() != 0)
+        ERROR("addParamsToFunction called with non-empty NewArgs (should only be used as return value).");
 
     FunctionType *OldFuncTy = F->getFunctionType();
 

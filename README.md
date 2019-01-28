@@ -1,3 +1,10 @@
+WARNING
+=======
+
+THIS REPOSITORY HAS BEEN DEPRICATED AND IS OUT OF DATE. Use the 'dist' branch
+of the 'vu-coco' repository instead.
+
+
 Compiler Construction framework
 ===============================
 

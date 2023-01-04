@@ -10,4 +10,8 @@ framework.tar.gz
 .clangd
 compile_commands.json
 *.zst
+*.builderr
+*.filecheckerr
+*.outerr
+*.outout
 *.user

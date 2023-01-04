@@ -6,3 +6,8 @@ obj/
 bootstrap.log
 *.pyc
 coco.tar.gz
+framework.tar.gz
+.clangd
+compile_commands.json
+*.zst
+*.user

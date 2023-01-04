@@ -60,9 +60,9 @@ bool DummyModulePass::runOnModule(Module &M) {
     Type *VoidTy = Type::getVoidTy(C);
     Type *Int32Ty = Type::getInt32Ty(C);
     //   void @__coco_dummy_print_allocation(i32 %elems)
-    PrintAllocFunc =
-        cast<Function>(M.getOrInsertFunction("__coco_dummy_print_allocation",
-                    VoidTy, Int32Ty));
+    auto FnCallee = M.getOrInsertFunction("__coco_dummy_print_allocation",
+                                          VoidTy, Int32Ty);
+    PrintAllocFunc = cast<Function>(FnCallee.getCallee());
 
     // LLVM wants to know whether we made any modifications to the IR, so we
     // keep track of this.

@@ -1,11 +1,15 @@
 LLVMCONF ?= llvm-config
 CXX     := g++
 PREFIX  := $(shell $(LLVMCONF) --prefix)
-CFLAGS  := -Wall -Werror -g3 $(subst $(PREFIX),'$(PREFIX)',$(shell $(LLVMCONF) --cxxflags)) -O0
+CFLAGS  := -Wall -Werror -g3 -fPIC $(subst $(PREFIX),'$(PREFIX)',$(shell $(LLVMCONF) --cxxflags)) -O0
 UNAME_S := $(shell uname -s)
 LDFLAGS := -g3 -shared $(subst $(PREFIX),'$(PREFIX)',$(shell $(LLVMCONF) --ldflags))
 ifeq ($(UNAME_S), Darwin)
 LDFLAGS += -Wl,-headerpad_max_install_names -undefined dynamic_lookup
+endif
+ifneq ("$(wildcard /usr/lib/libubsan.so)","")
+LDFLAGS += -fsanitize=undefined -fno-sanitize-recover=all
+CFLAGS += -fsanitize=undefined -fno-sanitize-recover=all
 endif
 OBJDIR  ?= ./obj
 

@@ -1,5 +1,7 @@
 define i32 @main() {
 entry:
+  ; CHECK: %a = bitcast i32 255 to i32
+  ; CHECK: br label %entry.while.cond
   br label %entry.while.cond
 
 entry.while.cond:                                 ; preds = %entry.while.body, %entry
@@ -10,8 +12,8 @@ entry.while.cond:                                 ; preds = %entry.while.body, %
 entry.while.body:                                 ; preds = %entry.while.cond
   ; CHECK: %.7 = add i32 %i.0, 1
   %.7 = add i32 %i.0, 1
+  ; CHECK-NOT: %a = bitcast i32 255 to i32
   %a = bitcast i32 255 to i32
-  ; CHECK-NOT: %x = add i32 1, 1
   %x = add i32 1, %a
   br label %entry.while.cond
 

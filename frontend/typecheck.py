@@ -1,6 +1,5 @@
 from util import ASTVisitor, NodeError, BackrefError
-from ast import Type, ArrayType, FunType, Block, If, Return, Const
-
+from fennec_ast import Type, ArrayType, FunType, Block, If, Return, Const
 
 class TypeChecker(ASTVisitor):
     '''
@@ -105,6 +104,7 @@ class TypeChecker(ASTVisitor):
             raise NodeError(node, 'Error: array must be non-void')
 
         self.visit_children(node)
+        self.check_type(node.size, self.tint)
 
     def visitAssignment(self, node):
         self.visit_children(node)
@@ -158,6 +158,9 @@ class TypeChecker(ASTVisitor):
                         'Note: variable is defined here')
 
             ty = ty.base
+
+        if isinstance(ty, FunType):
+            raise NodeError(node, 'Error: cannot use function as variable')
 
         node.ty = ty
 

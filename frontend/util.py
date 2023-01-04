@@ -2,7 +2,7 @@ import sys
 import os.path
 from io import StringIO
 from abc import ABCMeta
-from ast import Node, DeleteNode
+from fennec_ast import Node, DeleteNode
 
 
 #

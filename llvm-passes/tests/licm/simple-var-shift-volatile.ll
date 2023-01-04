@@ -16,11 +16,11 @@ entry.while.body:                                 ; preds = %entry.while.cond
   %c = load volatile i32, i32* %b
   ; CHECK: %.7 = lshr i32 %i.0, %c
   %.7 = lshr i32 %i.0, %c
-  ; CHECK-NOT: %.7 = lshr i32 %i.0, %f
+  ; CHECK-NOT: %.8 = lshr i32 %i.0, %f
   %.8 = lshr i32 %i.0, %f
-  ; CHECK: %x = lshr i32 %.7, %f
+  ; CHECK: %x = lshr i32 %.7, 4
   %x = lshr i32 %.7, %f
-  ; CHECK-NOT: %y = lshr i32 %f, %f
+  ; CHECK-NOT: %y = lshr i32 %i.0, %f
   %y = lshr i32 %i.0, %f
   br label %entry.while.cond
 

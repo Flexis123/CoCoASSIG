@@ -15,8 +15,10 @@ all:
 %.ll: %.fc
 	frontend $(CFLAGS) -o $@ $<
 
+# Run 'TIMEOUT=<timeout_in_seconds> make check' to kill tests with infinite
+# loops. The default is 3 seconds.
 check:
-	@python runtests.py
+	@python3 runtests.py
 
 clean:
-	rm -rf parsetab.py parser.out __pychache__ test/tmp*
+	rm -rf parsetab.py parser.out __pycache__ test/tmp*

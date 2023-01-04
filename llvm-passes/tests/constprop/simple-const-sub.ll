@@ -10,8 +10,8 @@ entry.while.cond:                                 ; preds = %entry.while.body, %
 entry.while.body:                                 ; preds = %entry.while.cond
   ; CHECK: %.7 = sub i32 %i.0, 1
   %.7 = sub i32 %i.0, 1
-  %x = sub i32 1, 1
-  ; CHECK: %y = sub i32 42, 0
+  %x = sub i32 2, 1
+  ; CHECK: %y = sub i32 42, 1
   %y = sub i32 42, %x
   br label %entry.while.cond
 

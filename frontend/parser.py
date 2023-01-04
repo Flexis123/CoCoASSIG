@@ -1,6 +1,6 @@
 import subprocess
 import ply.yacc as yacc
-import ast
+import fennec_ast as ast
 from lexer import tokens, create_lexer, token_error
 from util import LocationError, FatalError
 
@@ -390,7 +390,7 @@ if __name__ == '__main__':
         src = sys.stdin.read()
 
     try:
-        tree = parse(fname, preprocess(fname, src), debug=True)
+        tree = parse(fname, preprocess(fname, src), debug=False)
         print(tree)
         PrintTree().visit(tree)
         tree.verify()

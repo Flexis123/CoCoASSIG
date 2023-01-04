@@ -20,6 +20,9 @@ set -uo pipefail
 # stop on keyboard interrupt
 trap 'exit 1' INT
 
+# timeout before stopping the test
+TIMEOUT=${TIMEOUT:-3}
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../.."
 RUNTIMEDIR="$ROOT/runtime"
 
@@ -36,8 +39,15 @@ function run_test {
 
 
     # Wrap in subshell to disable "... Aborted" message
-    $(myopt $passes $testfile > "$testfile.optout" 2> "$testfile.opterr")
-    if [ ! $? -eq 0 ]; then
+    $(timeout $TIMEOUT myopt $passes $testfile > "$testfile.optout" 2> "$testfile.opterr")
+
+    RET=$?
+    if [ $RET -eq 124 ]; then
+        echo_failed "Timeout"
+        return 1
+    fi
+
+    if [ ! $RET -eq 0 ]; then
         echo_failed "Error while running pass"
         return 1
     fi
@@ -65,9 +75,9 @@ function run_test_dynamic {
         printf "%-60s " "$testfile:"
     fi
 
-    ( frontend $testfile -I $RUNTIMEDIR/ -o- |
+    ( frontend "$testfile" -I "$RUNTIMEDIR"/ -o- |
       myopt -alloca-hoisting -mem2reg $passes -o "$testfile.optout" &&
-      llvm-link "$testfile.optout" $RUNTIMEDIR/obj/*.ll |
+      llvm-link "$testfile.optout" "$RUNTIMEDIR"/obj/*.ll |
       llc -filetype=obj -o "$testfile.obj" &&
       clang -o "$testfile.bin" "$testfile.obj") 2> "$testfile.builderr"
     if [ ! $? -eq 0 ]; then

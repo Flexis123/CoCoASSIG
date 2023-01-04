@@ -15,11 +15,11 @@ from desugar import Desugarer
 from context import ContextAnalysis
 from typecheck import TypeChecker
 from irgen import IRGen
-from ast import ASTError
+from fennec_ast import ASTError
 from main import all_phases
 
 pkg_resources.require('ply')
-pkg_resources.require('llvmlite==0.21.*')
+pkg_resources.require('llvmlite==0.34.*')
 pkg_resources.require('termcolor')
 
 tests_dir = 'test'
@@ -32,6 +32,8 @@ parser = create_parser(debug=True)
 
 
 class TestCase:
+    default_timeout = 3.0 # in seconds, overwriteable with envvar TIMEOUT
+
     def __init__(self, path, phase, test_type, basename):
         self.path = path
         self.phase = phase
@@ -62,12 +64,16 @@ class TestCase:
 
         if self.test_type == 'dump':
             return self.test_dump()
-
         if self.test_type == 'run':
-            return self.test_run()
-
+            try:
+                return self.test_run()
+            except subprocess.TimeoutExpired:
+                return False
         if self.test_type == 'run-group':
-            return self.test_run_group()
+            try:
+                return self.test_run_group()
+            except subprocess.TimeoutExpired:
+                return False
 
         raise FatalError('invalid test type: ' + self.test_type)
 
@@ -186,6 +192,9 @@ class TestCase:
             print('Error: %s' % e, file=self.ferr)
         except (NotImplementedError, ASTError):
             traceback.print_exc(file=self.ferr)
+        except:
+            print('Error: frontend crashed', file=self.ferr)
+            traceback.print_exc(file=self.ferr)
 
     def compile_llvm(self, module, fcpath):
         ofile = fcpath.replace(fennec_ext, '.o')
@@ -204,14 +213,13 @@ class TestCase:
         return res.returncode == 0
 
     def run_binary(self, path):
+        timeout = float(os.getenv('TIMEOUT', default=self.default_timeout))
         res = subprocess.run([path], stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
-
+                             stderr=subprocess.STDOUT, timeout=timeout)
         outfile = path + '.run'
         with open(outfile, 'wb') as f:
             f.write(res.stdout)
         self.generated_files.append(outfile)
-
         return res.stdout.decode('ascii')
 
     def cleanup(self):
@@ -245,7 +253,7 @@ def expand_dirs(*paths):
             if 'run-group/' in path:
                 yield path
             else:
-                for child in glob.glob(path + '/*'):
+                for child in sorted(glob.glob(path + '/*')):
                     if os.path.isdir(child):
                         yield from expand_dirs(child)
                     elif child.endswith(fennec_ext):

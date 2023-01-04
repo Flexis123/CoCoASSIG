@@ -2,5 +2,5 @@ int foo(int i) {
     if (i)
         return 1;
     else
-        return false;
+        return 0;
 }

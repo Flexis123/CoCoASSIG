@@ -1,5 +1,7 @@
 define i32 @main() {
 entry:
+  ; CHECK: %x = sub i32 1, 1
+  ; CHECK: br label %entry.while.cond
   br label %entry.while.cond
 
 entry.while.cond:                                 ; preds = %entry.while.body, %entry

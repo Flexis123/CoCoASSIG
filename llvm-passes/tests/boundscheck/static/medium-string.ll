@@ -2,6 +2,7 @@
 
 ; CHECK: @f
 define void @f(i32 %o) {
+; CHECK-NOT: call
 ; CHECK:  %.str.1 = getelementptr [4 x i8], [4 x i8]* @.str, i32 0, i32 0
   %.str.1 = getelementptr [4 x i8], [4 x i8]* @.str, i32 0, i32 0
 

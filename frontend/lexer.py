@@ -1,6 +1,6 @@
 import ply.lex as lex
 from util import LocationError
-from ast import StringConst
+from fennec_ast import StringConst
 
 
 # define separate states for parsing strings and multi-line comments, since

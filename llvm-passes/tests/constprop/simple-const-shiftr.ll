@@ -11,7 +11,7 @@ entry.while.body:                                 ; preds = %entry.while.cond
   %a = alloca i32, i32 1
   ; CHECK: %.7 = ashr i32 %i.0, 1
   %.7 = ashr i32 %i.0, 1
-  ; CHECK-NOT: %x = ashr i32 1, 1
+  ; CHECK: %x = ashr i32 8, 1
   %x = ashr i32 8, 1
   ; CHECK: store volatile i32 4, i32* %a
   store volatile i32 %x, i32* %a

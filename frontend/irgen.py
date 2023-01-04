@@ -1,6 +1,6 @@
 from llvmlite import ir, binding
 from util import ASTTransformer
-import ast
+import fennec_ast as ast
 
 
 class IRGen(ASTTransformer):
@@ -186,9 +186,8 @@ class IRGen(ASTTransformer):
         zchar = self.getint(0, 8)
         elsize = self.getint(ty.get_abi_size(self.target_data))
         nbytes = self.builder.mul(size, elsize, name='nbytes')
-        align = self.getint(ty.get_abi_alignment(self.target_data))
         no = self.getint(0, 1)
-        self.builder.call(self.get_memset(), [ptr, zchar, nbytes, align, no])
+        self.builder.call(self.get_memset(), [ptr, zchar, nbytes, no])
 
         return alloca
 

@@ -96,7 +96,7 @@ now with another node as argument: `newnode.at(oldnode)`.
 Phase 4 - Context analysis
 --------------------------
 
-Context analysis is implemented in contex.py, its job is to bind variable uses
+Context analysis is implemented in context.py, its job is to bind variable uses
 and function calls to their corresponding variable/function definitions. It
 does this according to the scoping rules in the language reference. The
 reference document explains how the scoping rules are best implemented using a
@@ -130,11 +130,10 @@ Phase 6 - IR generation
 
 When the AST has been desugared and checked to be a valid program, it is
 transformed into LLVM IR by irgen.py. The LLVM IR language is well-documented
-[here](http://releases.llvm.org/5.0.0/docs/LangRef.html), make sure to read
+[here](http://releases.llvm.org/10.0.1/docs/LangRef.html), make sure to read
 that before modifying this phase. We use llvmlite Python bindings for LLVM,
 which has a great [user
-guide](http://llvmlite.readthedocs.io/en/latest/user-guide) (we use v0.21.0,
-docs are at v0.20.0 currently but there's no noticeable difference).
+guide](https://llvmlite.readthedocs.io/en/v0.34.0/user-guide/).
 
 irgen.py transforms the AST `Program` node into an LLVM module. Most AST nodes
 map trivially to an LLVM counterpart: only binary logical operators `&&` and

@@ -1,5 +1,5 @@
 from util import ASTTransformer
-from ast import Type, Operator, VarDef, ArrayDef, Assignment, Modification, \
+from fennec_ast import Type, Operator, VarDef, ArrayDef, Assignment, Modification, \
         If, Block, VarUse, BinaryOp, IntConst, Return
 
 

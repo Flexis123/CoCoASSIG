@@ -1,10 +1,3 @@
-WARNING
-=======
-
-THIS REPOSITORY HAS BEEN DEPRICATED AND IS OUT OF DATE. Use the 'dist' branch
-of the 'vu-coco' repository instead.
-
-
 Compiler Construction framework
 ===============================
 
@@ -25,8 +18,8 @@ The framework consists of several parts:
 - A runtime library, written in C, containing support code for instrumentation
   inserted by LLVM passes.
 
--  Tests for each part/assignments, and a number of test programs that can be
-   instrumented with any LLVM pass.
+- Tests for each part/assignments, and a number of test programs that can be
+  instrumented with any LLVM pass.
 
 Detailed documentation of these components resides in frontend/README.md,
 llvm-passes/README.md and examples/README.md.
@@ -35,61 +28,21 @@ llvm-passes/README.md and examples/README.md.
 Getting started
 ---------------
 
-First you need to install the dependencies (see below), which is done by
-`bootstrap.sh`:
+Execute the `run.sh` file in this directory like this:
 
-    $ bash bootstrap.sh
+   $ bash run.sh
 
-This script first installs some generic packages using the package manager
-(`apt-get` on Ubuntu) which is why it asks for your sudo password. It then
-downloads the necessary dependencies, builds them, and installs them into a
-so-called pythonenv, which is basically just a directory containing binaries.
-All files created by the bootstrap script are put in the `lib/` directory, so if
-anything gets corrupted you can always remove this directory completely and
-start over. To use the installed binaries and libraries after `bootstrap.sh` is
-done, you need to add them to your environment variables. To do this, run:
+It will download the docker image for this course and then run it.
+If you don't have docker installed on your machine, please follow the
+documentation here: https://docs.docker.com/get-docker/
+The VM of the course has docker preinstalled if you can not install
+docker on your machine.
 
-    $ source shrc
-
-If all goes well, this should add a "(coco)" prefix to your shell prompt. Now
-you have access to all installed binaries, try it out like this:
-
-    $ which clang
-    /.../coco/lib/install/bin/clang
-
-The pythonenv gives you access to the `frontend` command (which is simply a
-shorthand for `python frontend/main.py`). This runs the compiler frontend on a
-source file. Run the following command to see its options:
-
-    $ frontend -h
-
-Tests if it works by compiling a simple source file:
-
-    $ frontend -v examples/hello.fc -I runtime
-    $ clang -o examples/hello examples/hello.ll
-    $ examples/hello
-    Hello, World!
-
-When you are done with your work, or you want access to your original system's
-`clang`, for instance, you can get out of the pytonenv like this:
-
-    $ deactivate
-
-Before running bootstrap.sh, make sure you have enough disk space for
-downloading and building LLVM. The entire `lib/` directory occupies about 5.4GB.
-Also take into account that building LLVM takes a long time, and you probably
-don't want to do it on a laptop while running on battery.
-
-In particular, we require the following dependencies:
-
-- `build-essential` mainly for GNU Make (for the makefiles)
-- Git and `wget` to fetch dependencies
-- LLVM (version 5.0) as our compiler framework
-- CMake and Ninja to build LLVM
-- Python 3 for the frontend
-- `llvmlite` for LLVM python bindings (used by frontend)
-- `pythonenv` to install all dependencies into a local user directory
-
+This directory will be mounted inside that docker container. You can edit the
+course files in the docker container from your current machine. If you
+execute any command such as `make`, `myopt` and `lldb-myopt` you need
+to run them in the shell spawned by `run.sh` (which executes those
+commands in the docker container).
 
 Using the Makefile
 ------------------
@@ -114,7 +67,6 @@ will automatically rebuild when you run the tests or examples for instance.
 Source directories
 ------------------
 
-    lib/                    # dependencies, created by bootstrap.sh
     doc/                    # framework/language documentation
     frontend/               # frontend code (Assignment 1)
     frontend/README.md      # further documentation on frontend
@@ -122,8 +74,6 @@ Source directories
     llvm-passes/README.md   # further documentation on passes
     runtime/                # runtime support code for passes
     examples/               # some example programs to test your compiler
-    support/a               # FenneC syntax highlighting files for Vim
-    bootstrap.sh            # installs dependencies
+    support/                # FenneC syntax highlighting files for Vim
     Makefile                # build commands, see previous section
     README.md               # this file
-    shrc                    # script to load pythonenv

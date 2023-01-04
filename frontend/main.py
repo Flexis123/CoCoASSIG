@@ -6,7 +6,7 @@ import re
 import pkg_resources
 
 pkg_resources.require('ply')
-pkg_resources.require('llvmlite==0.21.*')
+pkg_resources.require('llvmlite==0.34.*')
 
 import llvmlite.binding as llvm
 
@@ -21,20 +21,6 @@ from irgen import IRGen
 all_phases =[
     'preprocess', 'parser', 'desugar', 'context', 'typecheck', 'irgen'
 ]
-
-
-def load_infile(args):
-    if not args.infile or args.infile == '-':
-        return '<stdin>', sys.stdin.read()
-
-    with open(args.infile) as f:
-        return args.infile, f.read()
-
-
-def infile_basename(args):
-    if args.infile:
-        return re.sub(r'\.f?[cC]$', '', fname)
-    return 'stdin'
 
 
 def dump(args, prog, phase, print_if_verbose, width=80):
@@ -53,32 +39,56 @@ def dump(args, prog, phase, print_if_verbose, width=80):
 
 
 def save_module(args, module):
-    fname = '/dev/stdout' if args.outfile == '-' else args.outfile
-
-    if not fname:
-        extension = '.bc' if args.emit_bc else '.ll'
-        fname = infile_basename(args) + extension
-
     mod = llvm.parse_assembly(str(module))
     mod.verify()
 
     if args.emit_bc:
-        with open(fname, 'wb') as f:
+        with os.fdopen(args.outfile.fileno(), 'wb') as f:
             f.write(mod.as_bitcode())
     else:
-        with open(fname, 'w') as f:
-            f.write(str(mod))
+        args.outfile.write(str(mod))
+
+
+def add_default_include_paths(args):
+    # add working dir and parent dir of source file to include path
+    args.include_paths.append('.')
+
+    if args.infile is not sys.stdin:
+        dirname = os.path.dirname(args.infile.name)
+        fulldir = os.path.abspath(dirname)
+        args.include_paths.append(fulldir)
+
+
+def infile_base(args):
+    print('base:', re.sub(r'\.f?[cC]$|^<|>$', '', args.infile.name))
+    return re.sub(r'\.f?[cC]$|^<|>$', '', args.infile.name)
+
+
+def fix_file_args(args):
+    if args.verbose:
+        args.outfile = sys.stdout
+        args.emit_ll = True
+
+    elif args.outfile is None:
+        if args.infile is sys.stdin:
+            args.outfile = sys.stdout
+            args.emit_ll = True
+        else:
+            extension = '.bc' if args.emit_bc else '.ll'
+            args.outfile = open(infile_base(args) + extension, 'w')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-cpp', dest='preprocess', action='store_false',
             help='do not run the preprocessor')
-    parser.add_argument('infile', nargs='?', default=None,
+    parser.add_argument('infile', nargs='?',
+            type=argparse.FileType('r'), default=sys.stdin,
             help='input file to compile (default stdin)')
     parser.add_argument('-v', '--verbose', action='store_true',
             help='enable all intermediate dumps and write IR to stdout')
     parser.add_argument('-o', '--outfile', metavar='FILE',
+            type=argparse.FileType('w'), default=None,
             help='output file (defaults to infile with .ll extension)')
     parser.add_argument('--emit-bc', action='store_true',
             help='write output as bitcode (produces .bc instead of .ll)')
@@ -89,29 +99,16 @@ if __name__ == '__main__':
             help='add include path for preprocessor')
     args = parser.parse_args()
 
-    if args.verbose:
-        args.outfile = '-'
-        args.emit_ll = True
-
-    if args.outfile is None and args.infile in ('dev/stdin', '-'):
-        args.outfile = '-'
-        args.emit_ll = True
-
-    # add working dir and parent dir of source file to include path
-    args.include_paths.append('.')
-    dirname = os.path.dirname(args.infile)
-    if dirname:
-        args.include_paths.append(dirname)
-
     try:
-        fname, src = load_infile(args)
-        origsrc = src
+        add_default_include_paths(args)
+        fix_file_args(args)
+        origsrc = src = args.infile.read()
 
         if args.preprocess:
-            src = preprocess(fname, src, args.include_paths)
+            src = preprocess(args.infile.name, src, args.include_paths)
             dump(args, src, 'preprocess', True)
 
-        tree = parse(fname, src)
+        tree = parse(args.infile.name, src)
         dump(args, tree, 'parser', True)
         tree.verify()
 
@@ -127,7 +124,7 @@ if __name__ == '__main__':
         dump(args, tree, 'typecheck', False)
         tree.verify()
 
-        module = IRGen(infile_basename(args)).visit(tree)
+        module = IRGen(args.infile.name).visit(tree)
         dump(args, module, 'irgen', False)
         save_module(args, module)
 

@@ -23,6 +23,13 @@ OK="[ ${GREEN}OK${END}]"
 INFO="[${BLUE}---${END}]"
 ERROR="[${RED}ERR${END}]"
 
+# Tell students that they don't need to run docker on the VM.
+if test -f "~/.coco-machine-token"; then
+    echo -e "${ERROR} You are on the CoCo VM. You don't need to"
+    echo -e "run docker and can directly run every commands."
+    exit
+fi
+
 # Sanity check if docker is installed.
 if ! command -v docker &> /dev/null
 then

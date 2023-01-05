@@ -74,6 +74,7 @@ package() {
   cd "$srcdir/build"
 
   DESTDIR="$pkgdir" ninja install
+  rm "$pkgdir/usr/bin/llvm-symbolizer"
 }
 
 # vim:set ts=2 sw=2 et:

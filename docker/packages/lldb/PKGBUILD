@@ -39,14 +39,15 @@ build() {
     -DLLVM_USE_LINKER=lld
   )
   cmake ../llvm "${cmake_args[@]}"
-  ninja lldb lldb-server
+  ninja lldb lldb-server llvm-symbolizer
 }
 
 package() {
   cd llvm-project-$pkgver.src/build
 
   DESTDIR="$pkgdir" \
-  ninja install-lldb \
+  ninja install-llvm-symbolizer \
+        install-lldb \
         install-lldb-argdumper \
         install-lldb-server \
         install-lldb-python-scripts \

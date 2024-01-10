@@ -55,7 +55,7 @@ class IRGen(ASTTransformer):
     def visitGlobalDef(self, node):
         self.visit_children(node)
         g = ir.GlobalVariable(self.module, self.getty(node._type), node.name)
-        g.linkage = 'internal' if node.static else 'available_externally'
+        g.linkage = 'internal' if node.static else ''
         g.initializer = node.value
         self.vars[node] = g
         return g

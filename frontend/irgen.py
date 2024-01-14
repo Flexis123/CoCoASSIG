@@ -229,12 +229,16 @@ class IRGen(ASTTransformer):
             false = self.makebool(False)
             return self.visit(ast.BinaryOp(node.value, eq, false).at(node))
 
+        nvalue = self.visit(node.value)
         if node.op == '-':
-            return self.builder.neg(self.visit(node.value))
+            if str(node.value.ty) == 'float':
+                return self.builder.fsub(ir.Constant(ir.DoubleType(), 0.0), nvalue)
+            else:
+                return self.builder.neg(nvalue)
 
         assert node.op == '~'
         return self.builder.not_(self.visit(node.value))
-
+    
     def visitBinaryOp(self, node):
         op = node.op
         b = self.builder
@@ -248,15 +252,22 @@ class IRGen(ASTTransformer):
             yes = self.makebool(True)
             return self.lazy_conditional(node, node.lhs, yes, node.rhs)
 
+        is_float = str(node.lhs.ty) == 'float'
+
         self.visit_children(node)
-
+        
         if op.is_equality() or op.is_relational():
-            return b.icmp_signed(op.op, node.lhs, node.rhs)
+            if is_float and op == '!=':
+                return b.fcmp_unordered(op.op, node.lhs, node.rhs)
+            elif is_float:
+                return b.fcmp_ordered(op.op, node.lhs, node.rhs)
+            else:
+                return b.icmp_signed(op.op, node.lhs, node.rhs)
 
-        callbacks = {
-            '+': b.add, '-': b.sub, '*': b.mul, '/': b.sdiv, '%': b.srem
-        }
 
+        callbacks = {'+': b.fadd, '-': b.fsub, '*': b.fmul, '/': b.fdiv, '%': b.frem} if is_float \
+            else {'+': b.add, '-': b.sub, '*': b.mul, '/': b.sdiv, '%': b.srem}
+            
         return callbacks[op.op](node.lhs, node.rhs)
 
     def lazy_conditional(self, node, cond, yesval, noval):
@@ -297,6 +308,9 @@ class IRGen(ASTTransformer):
 
     def visitIntConst(self, node):
         return ir.Constant(self.getty(node.ty), node.value)
+    
+    def visitFloatConst(self, node):
+        return ir.Constant(self.getty(node.ty), node.value)
 
     def visitStringConst(self, node):
         # name is unique, based on simple counter
@@ -334,6 +348,9 @@ class IRGen(ASTTransformer):
 
         if str(ty) == 'int':
             return ir.IntType(ast.Type.int_bits)
+        
+        if str(ty) == 'float':
+            return ir.DoubleType()
 
         assert str(ty) == 'void'
         return ir.VoidType()

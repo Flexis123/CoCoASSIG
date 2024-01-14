@@ -1,0 +1,1 @@
+visited float const 0.0

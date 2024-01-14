@@ -1,0 +1,46 @@
+<class 'fennec_ast.Assignment'>
+arr[i] = i;
+<class 'fennec_ast.Block'>
+{
+    printf("argv[%d]: %s\n", i, argv[i]);
+}
+<class 'fennec_ast.Block'>
+{
+    arr[i] = i;
+}
+<class 'fennec_ast.Block'>
+{
+    printf("argv[%d]: %s\n", i, argv[i]);
+}
+<class 'fennec_ast.Block'>
+{
+    arr[i] = i;
+}
+<class 'fennec_ast.Block'>
+{
+    printf("argv[%d]: %s\n", i, argv[i]);
+}
+<class 'fennec_ast.Block'>
+{
+    arr[i] = i;
+}
+<class 'fennec_ast.Block'>
+{
+    printf("argv[%d]: %s\n", i, argv[i]);
+}
+<class 'fennec_ast.Block'>
+{
+    arr[i] = i;
+}
+<class 'fennec_ast.Block'>
+{
+    printf("argv[%d]: %s\n", i, argv[i]);
+}
+<class 'fennec_ast.Block'>
+{
+    arr[i] = i;
+}
+<class 'fennec_ast.Block'>
+{
+    printf("argv[%d]: %s\n", i, argv[i]);
+}

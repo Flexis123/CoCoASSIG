@@ -9,7 +9,7 @@ class Type(object):
     can also pass array types like 'int[]' to `get` which will return an
     `ArrayType`.
     '''
-    base_types = frozenset(['bool', 'char', 'int', 'void'])
+    base_types = frozenset(['bool', 'char', 'int', 'float', 'void'])
     int_bits = 32
     cache = {}
 
@@ -328,6 +328,31 @@ class If(Statement):
         if self.nobody:
             s += ' else ' + str(self.nobody)
         return s
+    
+
+class DoWhileLoop(Statement):
+    children = ['cond', 'body']
+    types = dict(cond='Expression', body='Block')
+
+    def __str__(self):
+        return f"do {self.body} while ({self.cond});"
+
+class WhileLoop(Statement):
+    children = ['cond', 'body', 'desugared']
+    types = dict(cond='Expression', body='Block', desugared='bool')
+
+    def __str__(self):
+        return f"while ({self.cond}) {self.body}"
+    
+class ForLoop(Statement):
+    children = ['ind_var', 'end', 'body']
+    types = dict(ind_var='VarDef', end='Expression', body='Block')
+
+    def __str__(self):
+        with open("langref_debug.txt", "a") as f:
+            f.write(str(type(self.body)) + "\n")
+            f.write(str(self.body) + "\n")
+        return f"for ({str(self.ind_var).replace(';', '')} to {self.end}) {self.body} "
 
 
 class Return(Statement):
@@ -452,6 +477,14 @@ class IntConst(Const):
 
     def __str__(self):
         return str(self.value)
+    
+class FloatConst(Const):
+    children = ['value']
+    types = dict(value='float')
+
+    def __str__(self):
+        return str(self.value)
+
 
 
 class HexConst(IntConst):

@@ -278,6 +278,7 @@ def parse_test_path(path):
 
 
 if __name__ == '__main__':
+    print(os.getcwd())
     try:
         # collect tests to run
         if len(sys.argv) == 1:

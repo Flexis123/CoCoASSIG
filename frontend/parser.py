@@ -7,7 +7,7 @@ from util import LocationError, FatalError
 
 # operator precedence as per http://www.swansontec.com/sopc.html
 precedence = (
-    ('nonassoc', 'IF'),
+    ('nonassoc', 'IF', 'DO', 'WHILE', 'FOR'),
     ('nonassoc', 'ELSE'),
     ('left', 'OR'),
     ('left', 'AND'),
@@ -163,6 +163,19 @@ def p_if(p):
     nobody = block(p[7]) if len(p) == 8 else None
     p[0] = ast.If(p[3], block(p[5]), nobody).at(loc(p, 1, 4))
 
+def p_loops(p):
+    '''statement : WHILE LPAREN expr RPAREN statement
+                | DO statement WHILE LPAREN expr RPAREN SEMICOL
+                | FOR LPAREN TYPE ID ASSIGN expr TO expr RPAREN statement
+    '''
+    if(len(p) == 6):
+        p[0] = ast.WhileLoop(p[3], block(p[5]), False)
+    elif(len(p) == 8):
+        p[0] = ast.DoWhileLoop(p[5], block(p[2]))
+    else:
+        ind_var = ast.VarDef(ast.Type(p[3]), p[4], p[6])
+        p[0] = ast.ForLoop(ind_var, p[8], block(p[10]))
+
 
 def block(stat):
     if isinstance(stat, ast.Block):
@@ -253,6 +266,10 @@ def p_charconst(p):
 def p_intconst(p):
     '''expr : INTCONST'''
     p[0] = ast.IntConst(int(p[1])).at(loc(p))
+
+def p_floatconst(p):
+    '''expr : FLOATCONST'''
+    p[0] = ast.FloatConst(float(p[1])).at(loc(p))
 
 
 def p_hexconst(p):

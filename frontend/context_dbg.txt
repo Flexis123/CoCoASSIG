@@ -1,0 +1,34 @@
+i
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=void params=[] varargs=False> body=<Block>>, 'i': <VarDef _type=int name='i' value=<IntConst value=0>>}
+i
+{'i': <VarDef _type=int name='i' value=<IntConst value=0>>}
+i
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=void params=[] varargs=False> body=<Block>>, 'i': <VarDef _type=int name='i' value=<IntConst value=0>>}
+i
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=void params=[] varargs=False> body=<Block>>, 'i': <VarDef _type=int name='i' value=<IntConst value=0>>}
+i
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=void params=[] varargs=False> body=<Block>>, 'i': <VarDef _type=int name='i' value=<IntConst value=0>>}
+a
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=void params=[] varargs=False> body=<Block>>, 'a': <VarDef _type=int name='a' value=<IntConst value=1>>}
+g
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=void params=[] varargs=False> body=<Block>>, 'g': <VarDef _type=bool name='g' value=<BoolConst value=True>>}
+b
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=bool params=[<Param _type=int name='i'>] varargs=False> body=<Block>>, 'i': <Param _type=int name='i'>, 'b': <VarDef _type=bool name='b' value=<BoolConst value=True>>}
+b
+{'b': <VarDef _type=int name='b' value=<VarUse name='i' index=None>>}
+b
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=bool params=[<Param _type=int name='i'>] varargs=False> body=<Block>>, 'i': <Param _type=int name='i'>, 'b': <VarDef _type=bool name='b' value=<BoolConst value=True>>}
+i
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=void params=[] varargs=False> body=<Block>>, 'i': <VarDef _type=int name='i' value=<IntConst value=0>>}
+a
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=void params=[] varargs=False> body=<Block>>, 'a': <VarDef _type=int name='a' value=<IntConst value=1>>}
+g
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=void params=[] varargs=False> body=<Block>>, 'g': <VarDef _type=bool name='g' value=<BoolConst value=True>>}
+b
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=bool params=[<Param _type=int name='i'>] varargs=False> body=<Block>>, 'i': <Param _type=int name='i'>, 'b': <VarDef _type=bool name='b' value=<BoolConst value=True>>}
+b
+{'b': <VarDef _type=int name='b' value=<VarUse name='i' index=None>>}
+b
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=bool params=[<Param _type=int name='i'>] varargs=False> body=<Block>>, 'i': <Param _type=int name='i'>, 'b': <VarDef _type=bool name='b' value=<BoolConst value=True>>}
+b
+{'foo': <FunDef static=False name='foo' _type=<FunType return_type=bool params=[<Param _type=int name='i'>] varargs=False> body=<Block>>, 'i': <Param _type=int name='i'>, 'b': <VarDef _type=bool name='b' value=<BoolConst value=True>>}

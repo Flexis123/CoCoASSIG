@@ -156,6 +156,49 @@ class IRGen(ASTTransformer):
         # go to the end block to emit further instructions
         self.builder.position_at_start(bend)
 
+    def visitWhileLoop(self, node):
+        prefix = self.builder.block.name
+        while_cond = self.add_block(prefix + ".whilecond")
+        while_body = self.add_block(prefix + ".whilebody")
+        while_end = self.add_block(prefix + ".whileend")
+
+        self.builder.branch(while_cond)
+        self.builder.position_at_start(while_cond)
+        cond = self.visit_before(node.cond, while_body)
+        self.builder.cbranch(cond, while_body, while_end)
+
+        self.builder.position_at_start(while_body)
+        self.visit_before(node.body, while_end)
+        self.builder.branch(while_cond)
+
+        self.builder.position_at_start(while_end)
+
+    def visitDoWhileLoop(self, node):
+        prefix = self.builder.block.name
+        do_while_body = self.add_block(prefix + ".dobody")
+        do_while_cond = self.add_block(prefix + ".docond")
+        do_while_end = self.add_block(prefix + ".doend")
+
+        self.builder.branch(do_while_body)
+        self.builder.position_at_start(do_while_body)
+        self.visit_before(node.body, do_while_cond)
+        self.builder.branch(do_while_cond)
+
+        self.builder.position_at_start(do_while_cond)
+        cond = self.visit_before(node.cond, do_while_end)
+        self.builder.cbranch(cond, do_while_body, do_while_end)
+
+        self.builder.position_at_start(do_while_end)
+
+    def visitBreak(self, node):
+        block_name = self.builder.block.name
+        block_name_parts = block_name.split(".")
+        block_name_parts[-1] = "whileend" if "while" in block_name_parts[-1] else "doend"
+
+    
+    def visitContinue(self, node):
+        pass
+
     def visitReturn(self, node):
         self.visit_children(node)
 

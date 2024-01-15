@@ -1,6 +1,6 @@
 from util import ASTTransformer
 from fennec_ast import Type, Operator, VarDef, ArrayDef, Assignment, Modification, \
-        If, Block, VarUse, BinaryOp, IntConst, Return, DoWhileLoop, ForLoop, WhileLoop
+        If, Block, VarUse, BinaryOp, IntConst, Return, DoWhileLoop, ForLoop, WhileLoop, ExprStatement
 
 
 class Desugarer(ASTTransformer):
@@ -33,13 +33,15 @@ class Desugarer(ASTTransformer):
     
     def visitForLoop(self, m):
         self.visit_children(m)
-
-        var_ind_use = VarUse(m.ind_var.name)
-        while_cond = BinaryOp(var_ind_use, Operator("<="), m.end)
-       
-        m.body.statements.append(Assignment(var_ind_use, BinaryOp(var_ind_use, Operator("+"), IntConst(1))))
         
-        return [
+        var_ind_use = VarUse(m.ind_var.name)
+        end_var = VarDef(Type.get("int"), self.makevar("end"), m.end)
+        while_cond = BinaryOp(var_ind_use, Operator("<"), VarUse(end_var.name))
+       
+        return [end_var, Block([
             m.ind_var,
-            WhileLoop(while_cond, m.body, True)
-        ]
+            WhileLoop(while_cond, Block([
+                m.body,
+                Assignment(var_ind_use, BinaryOp(var_ind_use, Operator("+"), IntConst(1)))
+            ]), True)
+        ])]

@@ -1,0 +1,8 @@
+void foo(bool i){
+    if(i){
+        int i = 0;
+    }
+    if(!i){
+        int f = 2;
+    }
+}

@@ -22,6 +22,7 @@ class Type(object):
 
     def __repr__(self):
         return str(self)
+    
 
     @classmethod
     def get(cls, name):
@@ -328,7 +329,6 @@ class If(Statement):
         if self.nobody:
             s += ' else ' + str(self.nobody)
         return s
-    
 
 class DoWhileLoop(Statement):
     children = ['cond', 'body']
@@ -349,11 +349,18 @@ class ForLoop(Statement):
     types = dict(ind_var='VarDef', end='Expression', body='Block')
 
     def __str__(self):
-        with open("langref_debug.txt", "a") as f:
-            f.write(str(type(self.body)) + "\n")
-            f.write(str(self.body) + "\n")
-        return f"for ({str(self.ind_var).replace(';', '')} to {self.end}) {self.body} "
+        return f"for ({str(self.ind_var).replace(';', '')} to {self.end}) {self.body}"
+    
 
+class Break(Statement):
+
+    def __str__(self):
+        return "break;"
+
+class Continue(Statement):
+     def __str__(self):
+        return "continue;"
+    
 
 class Return(Statement):
     children = ['value']

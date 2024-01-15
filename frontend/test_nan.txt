@@ -1,4 +1,0 @@
-(NaN == NaN)
-float
-float
-{<Param _type=bool name='b'>: <ir.AllocaInstr 'b' of type 'i1*', opname 'alloca', operands ()>, <VarDef _type=float name='NaN' value=<BinaryOp lhs=<ir.Constant type='double' value=0.0> op=/ rhs=<ir.Constant type='double' value=0.0>>>: <ir.AllocaInstr 'NaN' of type 'double*', opname 'alloca', operands ()>}

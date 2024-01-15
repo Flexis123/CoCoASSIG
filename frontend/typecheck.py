@@ -129,16 +129,31 @@ class TypeChecker(ASTVisitor):
         self.visit_children(node)
         self.check_type(node.cond, self.tbool)
 
-    def visitDoWhileLoop(self, node):
+    def _visit_children_as_loop(self, node):
+        self.in_loop = True
         self.visit_children(node)
+        self.in_loop = False
+
+    def visitDoWhileLoop(self, node):
+        self._visit_children_as_loop(node)
         self.check_type(node.cond ,self.tbool)
 
     def visitWhileLoop(self, node):
-        self.visit_children(node)
+        self._visit_children_as_loop(node)
         if node.desugared:
             self.check_type(node.cond.lhs, self.tint)
         else:
             self.check_type(node.cond, self.tbool)
+
+    def _visit_iter_termination(self, node, stmt):
+        if not self.in_loop:
+            raise NodeError(node, f"Error: {stmt} statement is not inside a loop")
+
+    def visitBreak(self, node):
+        self._visit_iter_termination(node, "break")
+
+    def visitContinue(self, node):
+        self._visit_iter_termination(node, "continue")
 
     def visitReturn(self, node):
         # returned type must match function type

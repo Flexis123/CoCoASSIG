@@ -166,16 +166,24 @@ def p_if(p):
 def p_loops(p):
     '''statement : WHILE LPAREN expr RPAREN statement
                 | DO statement WHILE LPAREN expr RPAREN SEMICOL
-                | FOR LPAREN TYPE ID ASSIGN expr TO expr RPAREN statement
+                | FOR LPAREN type ID ASSIGN expr TO expr RPAREN statement
     '''
     if(len(p) == 6):
-        p[0] = ast.WhileLoop(p[3], block(p[5]), False)
+        p[0] = ast.WhileLoop(p[3], block(p[5]), False).at(loc(p, 1, 4))
     elif(len(p) == 8):
-        p[0] = ast.DoWhileLoop(p[5], block(p[2]))
+        p[0] = ast.DoWhileLoop(p[5], block(p[2])).at(loc(p, 3, 7))
     else:
-        ind_var = ast.VarDef(ast.Type(p[3]), p[4], p[6])
-        p[0] = ast.ForLoop(ind_var, p[8], block(p[10]))
+        ind_var = ast.VarDef(p[3], p[4], p[6])
+        p[0] = ast.ForLoop(ind_var, p[8], block(p[10])).at(loc(p, 1, 9))
 
+def p_break(p):
+    '''statement : BREAK SEMICOL'''
+    p[0] = ast.Break().at(loc(p))
+
+def p_continue(p):
+    '''statement : CONTINUE SEMICOL'''
+    p[0] = ast.Continue().at(loc(p))
+    
 
 def block(stat):
     if isinstance(stat, ast.Block):

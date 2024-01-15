@@ -1,0 +1,7 @@
+void foo(){
+    int f = 10;
+    for(int i = f - 5 to f + 3) {
+        int i = 0;
+        f += 2;
+    }
+}

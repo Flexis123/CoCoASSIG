@@ -37,11 +37,13 @@ class Desugarer(ASTTransformer):
         var_ind_use = VarUse(m.ind_var.name)
         end_var = VarDef(Type.get("int"), self.makevar("end"), m.end)
         while_cond = BinaryOp(var_ind_use, Operator("<"), VarUse(end_var.name))
+
+        var_ind_inc = Assignment(var_ind_use, BinaryOp(var_ind_use, Operator("+"), IntConst(1)))
        
         return [end_var, Block([
             m.ind_var,
             WhileLoop(while_cond, Block([
                 m.body,
-                Assignment(var_ind_use, BinaryOp(var_ind_use, Operator("+"), IntConst(1)))
-            ]), True)
+                var_ind_inc
+            ]), True, var_ind_inc)
         ])]

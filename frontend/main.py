@@ -39,7 +39,6 @@ def dump(args, prog, phase, print_if_verbose, width=80):
 
 
 def save_module(args, module):
-    print(str(module))
     mod = llvm.parse_assembly(str(module))
     mod.verify()
 

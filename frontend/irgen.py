@@ -2,6 +2,13 @@ from llvmlite import ir, binding
 from util import ASTTransformer
 import fennec_ast as ast
 
+class IrLoop:
+    def __init__(self, cond_block, body_block, end_block, is_for_loop, ind_var_inc):
+        self.cond_block = cond_block
+        self.body_block = body_block
+        self.end_block = end_block
+        self.is_for_loop = is_for_loop
+        self.ind_var_inc = ind_var_inc
 
 class IRGen(ASTTransformer):
     '''
@@ -144,7 +151,12 @@ class IRGen(ASTTransformer):
 
         # insert instructions for the 'if' block before the 'else' block
         self.builder.position_at_start(bif)
-        self.visit_before(node.yesbody, belse)
+        self.visit_before(node.yesbody, belse)      
+
+        with open("dbg.txt", "a") as f:
+            f.write(f"{self.builder.block}\n")
+            f.write(f"{self.builder.module}\n")
+    
         self.builder.branch(bend)
 
         # insert instructions for the 'else' block before the end block
@@ -162,6 +174,8 @@ class IRGen(ASTTransformer):
         while_body = self.add_block(prefix + ".whilebody")
         while_end = self.add_block(prefix + ".whileend")
 
+        self.loops.append(IrLoop(while_cond, while_body, while_end, node.desugared, node.ind_var_inc))
+
         self.builder.branch(while_cond)
         self.builder.position_at_start(while_cond)
         cond = self.visit_before(node.cond, while_body)
@@ -173,14 +187,19 @@ class IRGen(ASTTransformer):
 
         self.builder.position_at_start(while_end)
 
+        self.loops.pop()
+
     def visitDoWhileLoop(self, node):
         prefix = self.builder.block.name
         do_while_body = self.add_block(prefix + ".dobody")
         do_while_cond = self.add_block(prefix + ".docond")
         do_while_end = self.add_block(prefix + ".doend")
 
+        self.loops.append(IrLoop(do_while_cond, do_while_body, do_while_end, False, ""))
+
         self.builder.branch(do_while_body)
         self.builder.position_at_start(do_while_body)
+
         self.visit_before(node.body, do_while_cond)
         self.builder.branch(do_while_cond)
 
@@ -190,14 +209,26 @@ class IRGen(ASTTransformer):
 
         self.builder.position_at_start(do_while_end)
 
+        self.loops.pop()
+
     def visitBreak(self, node):
-        block_name = self.builder.block.name
-        block_name_parts = block_name.split(".")
-        block_name_parts[-1] = "whileend" if "while" in block_name_parts[-1] else "doend"
+        self.builder.branch(self.loops[-1].end_block) #also putt a block
+        self.builder = ir.IRBuilder(self.add_block())
 
     
     def visitContinue(self, node):
-        pass
+        target_loop = self.loops[-1]
+        if(target_loop.is_for_loop):
+            self.visit_children(target_loop.ind_var_inc)
+
+            with open("dbg.txt", "a") as f:
+                f.write(f"{self.builder.module}\n")
+            self.builder.branch(target_loop.cond_block)
+
+            self.builder = ir.IRBuilder(self.add_block())
+        else:
+            self.builder.branch(target_loop.cond_block)
+            self.builder = ir.IRBuilder(self.add_block())
 
     def visitReturn(self, node):
         self.visit_children(node)

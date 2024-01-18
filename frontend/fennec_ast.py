@@ -338,8 +338,8 @@ class DoWhileLoop(Statement):
         return f"do {self.body} while ({self.cond});"
 
 class WhileLoop(Statement):
-    children = ['cond', 'body', 'desugared']
-    types = dict(cond='Expression', body='Block', desugared='bool')
+    children = ['cond', 'body', 'desugared', 'ind_var_inc']
+    types = dict(cond='Expression', body='Block', desugared='bool', ind_var_inc="Assignment")
 
     def __str__(self):
         return f"while ({self.cond}) {self.body}"

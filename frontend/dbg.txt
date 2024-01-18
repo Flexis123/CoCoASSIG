@@ -1,20 +1,65 @@
+; ModuleID = "while_break.fc"
+target triple = "x86_64-pc-linux-gnu"
+target datalayout = ""
 
-{'lhs': <VarUse name='f' index=None>, 'op': +, 'rhs': <IntConst value=3>, 'location': ('for-expr.fc', 3, 26, 3, 30)}
-{'ind_var': <VarDef _type=int name='i' value=<BinaryOp lhs=<VarUse name='f' index=None> op=- rhs=<IntConst value=5>>>, 'end': <BinaryOp lhs=<VarUse name='f' index=None> op=+ rhs=<IntConst value=3>>, 'body': <Block statements=[<Assignment ref=<VarUse name='f' index=None> value=<BinaryOp lhs=<VarUse name='f' index=None> op=+ rhs=<IntConst value=2>>>]>, 'location': ('for-expr.fc', 3, 5, 3, 31)}
-{'ind_var': <VarDef _type=int name='i' value=<BinaryOp lhs=<VarUse name='f' index=None> op=- rhs=<IntConst value=5>>>, 'end': <BinaryOp lhs=<VarUse name='f' index=None> op=+ rhs=<IntConst value=3>>, 'body': <Block statements=[<Assignment ref=<VarUse name='f' index=None> value=<BinaryOp lhs=<VarUse name='f' index=None> op=+ rhs=<IntConst value=2>>>]>, 'location': (None, 0, 0, 0, 0)}
-parser -> {'lhs': <VarUse name='f' index=None>, 'op': +, 'rhs': <IntConst value=3>, 'location': ('for-expr.fc', 3, 26, 3, 30)}
-{'ind_var': <VarDef _type=int name='i' value=<BinaryOp lhs=<VarUse name='f' index=None> op=- rhs=<IntConst value=5>>>, 'end': <BinaryOp lhs=<VarUse name='f' index=None> op=+ rhs=<IntConst value=3>>, 'body': <Block statements=[<Assignment ref=<VarUse name='f' index=None> value=<BinaryOp lhs=<VarUse name='f' index=None> op=+ rhs=<IntConst value=2>>>]>, 'location': ('for-expr.fc', 3, 5, 3, 31)}
-parser -> {'lhs': <VarUse name='f' index=None>, 'op': +, 'rhs': <IntConst value=3>, 'location': ('for-expr.fc', 3, 26, 3, 30)}
-parser -> {'lhs': <VarUse name='f' index=None>, 'op': +, 'rhs': <FloatConst value=3.0>, 'location': ('for-expr.fc', 3, 26, 3, 32)}
-parser -> {'lhs': <VarUse name='f' index=None>, 'op': +, 'rhs': <FloatConst value=3.0>, 'location': ('for-expr.fc', 3, 26, 3, 32)}
-parser -> {'lhs': <VarUse name='f' index=None>, 'op': +, 'rhs': <IntConst value=3>, 'location': ('for-expr.fc', 3, 26, 3, 30)}
-parser -> {'name': 'len', 'index': None, 'location': ('test/parser/dump/langref-example.fc', 12, 23, 12, 25)}
-parser -> {'name': 'argc', 'index': None, 'location': ('test/parser/dump/langref-example.fc', 17, 23, 17, 26)}
-parser -> {'value': 10, 'location': ('test/parser/success/for.fc', 2, 23, 2, 24)}
-parser -> {'name': 'l', 'index': None, 'location': ('test/parser/success/for.fc', 5, 24, 5, 24)}
-parser -> {'value': 10, 'location': ('test/desugar/success/for-return.fc', 2, 23, 2, 24)}
-parser -> {'value': 10, 'location': ('test/context/context/success/shadow-vardef-with-for.fc', 4, 23, 4, 24)}
-parser -> {'value': 10, 'location': ('test/context/success/shadow-vardef-with-for.fc', 4, 23, 4, 24)}
-parser -> {'value': 10.0, 'location': ('test/typecheck/error/invalid-idvar-type.fc', 2, 27, 2, 30)}
-parser -> {'name': 'num', 'index': None, 'location': ('test/irgen/run/count.fc', 7, 23, 7, 25)}
-parser -> {'value': 16, 'location': ('test/irgen/run/passing-array.fc', 10, 23, 10, 24)}
+declare i32 @"printf"(i8* %".1", ...) 
+
+define i32 @"main"() 
+{
+entry:
+  %"_end" = alloca i32
+  store i32 10, i32* %"_end"
+  %"i" = alloca i32
+  store i32 0, i32* %"i"
+  br label %"entry.whilecond"
+entry.whilecond:
+  %"i.1" = load i32, i32* %"i"
+  %"_end.1" = load i32, i32* %"_end"
+  %".5" = icmp slt i32 %"i.1", %"_end.1"
+  br i1 %".5", label %"entry.whilebody", label %"entry.whileend"
+entry.whilebody:
+  %"i.2" = load i32, i32* %"i"
+  %".7" = icmp eq i32 %"i.2", 5
+  br i1 %".7", label %"entry.whilebody.if", label %"entry.whilebody.endif"
+entry.whilebody.if:
+  %"i.3" = load i32, i32* %"i"
+  %"i.4" = load i32, i32* %"i"
+  %".9" = add i32 %"i.4", 1
+entry.whilebody.endif:
+entry.whileend:
+}
+
+%".11" = .11:
+; ModuleID = "while_break.fc"
+target triple = "x86_64-pc-linux-gnu"
+target datalayout = ""
+
+declare i32 @"printf"(i8* %".1", ...) 
+
+define i32 @"main"() 
+{
+entry:
+  %"_end" = alloca i32
+  store i32 10, i32* %"_end"
+  %"i" = alloca i32
+  store i32 0, i32* %"i"
+  br label %"entry.whilecond"
+entry.whilecond:
+  %"i.1" = load i32, i32* %"i"
+  %"_end.1" = load i32, i32* %"_end"
+  %".5" = icmp slt i32 %"i.1", %"_end.1"
+  br i1 %".5", label %"entry.whilebody", label %"entry.whileend"
+entry.whilebody:
+  %"i.2" = load i32, i32* %"i"
+  %".7" = icmp eq i32 %"i.2", 5
+  br i1 %".7", label %"entry.whilebody.if", label %"entry.whilebody.endif"
+entry.whilebody.if:
+  %"i.3" = load i32, i32* %"i"
+  %"i.4" = load i32, i32* %"i"
+  %".9" = add i32 %"i.4", 1
+  br label %"entry.whilecond"
+.11:
+entry.whilebody.endif:
+entry.whileend:
+}
+

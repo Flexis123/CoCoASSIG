@@ -63,3 +63,47 @@ entry.whilebody.endif:
 entry.whileend:
 }
 
+%"entry.whilebody.whilebody.if" = entry.whilebody.whilebody.if:
+  store i32 1, i32* %"n"
+; ModuleID = "while_break.fc"
+target triple = "x86_64-pc-linux-gnu"
+target datalayout = ""
+
+define i32 @"main"() 
+{
+entry:
+  %"n" = alloca i32
+  store i32 0, i32* %"n"
+  %"_end2" = alloca i32
+  store i32 10, i32* %"_end2"
+  %"i" = alloca i32
+  store i32 0, i32* %"i"
+  br label %"entry.whilecond"
+entry.whilecond:
+  %"i.1" = load i32, i32* %"i"
+  %"_end2.1" = load i32, i32* %"_end2"
+  %".6" = icmp slt i32 %"i.1", %"_end2.1"
+  br i1 %".6", label %"entry.whilebody", label %"entry.whileend"
+entry.whilebody:
+  store i32 10, i32* %"n"
+  %"_end" = alloca i32
+  store i32 10, i32* %"_end"
+  %"f" = alloca i32
+  store i32 0, i32* %"f"
+  br label %"entry.whilebody.whilecond"
+entry.whilebody.whilecond:
+  %"f.1" = load i32, i32* %"f"
+  %"_end.1" = load i32, i32* %"_end"
+  %".12" = icmp slt i32 %"f.1", %"_end.1"
+  br i1 %".12", label %"entry.whilebody.whilebody", label %"entry.whilebody.whileend"
+entry.whilebody.whilebody:
+  %"f.2" = load i32, i32* %"f"
+  %".14" = icmp eq i32 %"f.2", 3
+  br i1 %".14", label %"entry.whilebody.whilebody.if", label %"entry.whilebody.whilebody.endif"
+entry.whilebody.whilebody.if:
+  store i32 1, i32* %"n"
+entry.whilebody.whilebody.endif:
+entry.whilebody.whileend:
+entry.whileend:
+}
+

@@ -29,7 +29,7 @@ void DummyDTPass::getAnalysisUsage(AnalysisUsage &AU) const {
 bool DummyDTPass::runOnLoop(Loop *L, LPPassManager &LPM) {
     BasicBlock *Header = L->getHeader();
     DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-
+   
     for (BasicBlock *BB : L->blocks()) {
         if (DT->dominates(Header, BB)) {
             LOG_LINE("The loop header dominates this Basic Block");

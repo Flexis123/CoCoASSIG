@@ -1,5 +1,7 @@
-#define DEBUG_TYPE "DummyPass"
+#define DEBUG_TYPE "ADCE"
 #include "utils.h"
+
+//are they gonna test if(false)/while(false) ?
 
 namespace {
     class ADCE : public FunctionPass {
@@ -10,42 +12,50 @@ namespace {
     };
 }
 
-bool isTriviallyLive(Instruction &i){
+bool isTriviallyLive(Instruction* i){
     bool isVolatileLoad = false;
-    Instruction *ii = &i;
-    if(LoadInst* li =  dyn_cast<LoadInst>(ii)) isVolatileLoad = li->isVolatile();
+    if(LoadInst* li = dyn_cast<LoadInst>(i)) isVolatileLoad = li->isVolatile();
 
-    return i.mayHaveSideEffects() || i.isTerminator() || isVolatileLoad || dyn_cast<StoreInst>(ii) || dyn_cast<CallInst>(ii);
+    return i->mayHaveSideEffects() || i->isTerminator() || isVolatileLoad || dyn_cast<StoreInst>(i) || dyn_cast<CallInst>(i);
 }
 
-bool ADCE::runOnFunction(Function &F) {
-    LOG_LINE("Visiting function " << F.getName());
+void basicBlockTrivialAnalysis(BasicBlock::iterator I, BasicBlock::iterator IE, bool &changedIr, std::set<Instruction*> &liveSet, SmallVector<Instruction*,  128> &workList){
+    for (; I != IE; ++I){
+        Instruction* ii = &*I; 
 
-
-    std::set<Instruction> liveSet;
-    df_iterator_default_set<BasicBlock*> reachableBlocks;
-    SmallVector<Instruction> workList;
-
-    for(BasicBlock block : depth_first_ext(F, reachableBlocks)){
-        for(Instruction &i : block.getInstList()){
-            if(isTriviallyLive(i)) {
-                liveSet.insert(i);
-                workList.push_back(i);
-            }
-            else if(i.use_empty()) i.eraseFromParent();
+        if(isTriviallyLive(ii)) {
+            liveSet.insert(ii);
+            workList.push_back(ii);
+        }
+        else if(ii->use_empty()) {
+            changedIr = true;
+            return basicBlockTrivialAnalysis(ii->eraseFromParent(), IE, changedIr, liveSet, workList);
         }
     }
+}
 
+
+
+bool ADCE::runOnFunction(Function &F) {
+    std::set<Instruction*> liveSet;
+    df_iterator_default_set<BasicBlock*, 32> reachableBlocks;
+    SmallVector<Instruction*,  128> workList;
+    bool changedIr = false;
+    
+    for(BasicBlock* block : depth_first_ext(&F, reachableBlocks)) 
+        basicBlockTrivialAnalysis(block->begin(), block->end(), changedIr, liveSet, workList);
+        
+    
     while (!workList.empty()){
-        Instruction &i = workList.front();
+        Instruction* i = workList.front();
         workList.erase(workList.begin());
 
-        if(reachableBlocks.find(i.getParent()) != reachableBlocks.end()){
-            for (Use &U : i.operands()) {
+        if(reachableBlocks.find(i->getParent()) != reachableBlocks.end()){
+            for (Use &U : i->operands()) {
                 Value *v = U.get();
                 
                 if(Instruction* ii = dyn_cast<Instruction>(v)){
-                    if(liveSet.insert(*ii).second) workList.push_back(*ii);
+                    if(liveSet.insert(ii).second) workList.push_back(ii);  
                 }
             }
         }
@@ -54,18 +64,18 @@ bool ADCE::runOnFunction(Function &F) {
     std::set<Instruction*> nonLiveInstructions;
 
     for(BasicBlock* bb : reachableBlocks){
-        for(Instruction &i: bb->instructionsWithoutDebug()){
+        for(Instruction &i: *bb){
             Instruction *ii = &i;
-            if(liveSet.find(i) == liveSet.end()) {
+            if(liveSet.find(ii) == liveSet.end()) {
                 ii->dropAllReferences();
                 nonLiveInstructions.insert(ii);  
-            }
+            } 
         }
     }
 
     for(Instruction* i: nonLiveInstructions) i->eraseFromParent();
 
-    return !nonLiveInstructions.empty();
+    return changedIr || !nonLiveInstructions.empty();
 }
 
 

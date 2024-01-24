@@ -49,15 +49,7 @@ void hoistInstructions(Loop* L, BasicBlock* BB, DominatorTree *DT, BasicBlock::i
     }
 }
 
-// TODO:
-// Indirectbr instructions introduce several complications. If the loop
-// contains or is entered by an indirectbr instruction, it may not be possible
-// to transform the loop and make these guarantees. Client code should check
-// that these conditions are true before relying on them.
-
-//Can -loop-simplify create a common preheader if there are indirect br always?
 bool LICM::runOnLoop(Loop *L, LPPassManager &LPM) {
-    LOG_LINE("loop: " << L->getName());
     BasicBlock *Header = L->getHeader();
     DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     LoopInfo *loopInfo = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();

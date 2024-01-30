@@ -40,8 +40,9 @@ class Desugarer(ASTTransformer):
 
         var_ind_inc = Assignment(var_ind_use, BinaryOp(var_ind_use, Operator("+"), IntConst(1)))
        
-        return [end_var, Block([
+        return [Block([
             m.ind_var,
+            end_var,
             WhileLoop(while_cond, Block([
                 m.body,
                 var_ind_inc

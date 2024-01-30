@@ -36,28 +36,35 @@ bool isSafeToHoist(Instruction *I, Loop *L, DominatorTree *DT){
     return !I->mayHaveSideEffects() || std::all_of(exitBlocks.begin(), exitBlocks.end(), [&](BasicBlock* BB) {return DT->dominates(I->getParent(), BB);});
 }
 
-void hoistInstructions(Loop* L, BasicBlock* BB, DominatorTree *DT, BasicBlock::iterator I, BasicBlock::iterator IE, bool &changedIr){
-    for (; I != IE; ++I){
-        Instruction* II = &*I; 
-        if(isLoopInvariant(II, L) && isSafeToHoist(II, L, DT)){
-            BasicBlock::iterator new_I = ++I;
-            II->moveBefore(L->getLoopPreheader()->getTerminator());
-            changedIr = true;
-
-            return hoistInstructions(L, BB, DT, new_I, IE, changedIr);
-        }
-    }
-}
-
 bool LICM::runOnLoop(Loop *L, LPPassManager &LPM) {
     BasicBlock *Header = L->getHeader();
     DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     LoopInfo *loopInfo = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
     bool changedIr = false;
 
+
     for (BasicBlock *BB : L->blocks()) {
         if (DT->dominates(Header, BB) && loopInfo->getLoopFor(BB)->getLoopDepth() == L->getLoopDepth()) {
-            hoistInstructions(L, BB, DT, BB->begin(), BB->end(), changedIr);
+            SmallVector<Instruction*,  128> workList;
+
+            for(Instruction &I: *BB){
+                Instruction* II = &I;
+                if(isLoopInvariant(II, L)) workList.push_back(II);
+            }
+
+            while(!workList.empty()){
+                Instruction* II = workList.front();
+                workList.erase(workList.begin());
+
+                if(isSafeToHoist(II, L, DT)){
+                    II->moveBefore(L->getLoopPreheader()->getTerminator());
+
+                    for(User *U: II->users()){
+                        Instruction *III;
+                        if ((III = dyn_cast<Instruction>(U)) && isLoopInvariant(III, L)) workList.push_back(III);
+                    }
+                }
+            }
         }
     }
 

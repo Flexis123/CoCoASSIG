@@ -14,12 +14,15 @@ class ConstInfo{
     public:
         bool isZero = false;
         bool isOne = false;
+        bool isAllOnes = false;
+        bool isAllZeros = false;
         ConstantInt* constant = nullptr;
 
         ConstInfo(Value* hs) {
             if((this->constant = dyn_cast<ConstantInt>(hs))){
                 this->isZero = constant->isZero();
                 this->isOne = constant->isOne();
+                this->isAllOnes = constant->isAllOnesValue();
             }
         }
 };
@@ -36,32 +39,66 @@ Transformation* getConstPropagationTransformation(Instruction *I){
     t->I = I;
 
     if(I->isBinaryOp()){
-
         ConstInfo lhs(I->getOperand(0));
         ConstInfo rhs(I->getOperand(1));
 
         if(lhs.constant && rhs.constant){
             APInt res;
+            APInt clhs = lhs.constant->getValue();
+            APInt crhs = rhs.constant->getValue();
+
             switch (I->getOpcode())
             {
             case Instruction::Add:
-                res = lhs.constant->getValue() + rhs.constant->getValue();
+                res = clhs + crhs;
                 break;
 
             case Instruction::Sub:
-                res = lhs.constant->getValue() - rhs.constant->getValue();
+                res = clhs - crhs;
                 break;
 
             case Instruction::Mul:
-                res = lhs.constant->getValue() * rhs.constant->getValue();
+                res = clhs * crhs;
                 break;
 
             case Instruction::AShr:
-                res = lhs.constant->getValue().ashr(rhs.constant->getValue());
+                res = clhs.ashr(crhs);
+                break;
+
+            case Instruction::LShr:
+                res = clhs.lshr(crhs);
                 break;
 
             case Instruction::Shl:
-                res = lhs.constant->getValue().shl(rhs.constant->getValue());
+                res = clhs.shl(crhs);
+                break;
+
+            case Instruction::URem:
+                res = clhs.urem(crhs);
+                break;
+
+            case Instruction::SRem:
+                res = clhs.srem(crhs);
+                break;
+
+            case Instruction::UDiv:
+                res = clhs.udiv(crhs);
+                break;
+
+            case Instruction::SDiv:
+                res = clhs.sdiv(crhs);
+                break;
+
+            case Instruction::And:
+                res = clhs & crhs;
+                break;
+
+            case Instruction::Or:
+                res = clhs | crhs;
+                break;
+
+            case Instruction::Xor:
+                res = clhs ^ crhs;
                 break;
             
             default:
@@ -79,14 +116,15 @@ Transformation* getConstFoldTransformation(Instruction *I){
     t->I = I;
 
     if(I->isBinaryOp()){
+        //BinaryOperator* op;
         Value* _lhs = I->getOperand(0);
         Value* _rhs = I->getOperand(1);
 
         ConstInfo lhs(I->getOperand(0));
         ConstInfo rhs(I->getOperand(1));
 
-        Instruction* ilhs;
-        Instruction* irhs;
+        Instruction* ilhs = dyn_cast<Instruction>(_lhs);
+        Instruction* irhs = dyn_cast<Instruction>(_lhs);
 
         Value* zero = ConstantInt::get(I->getType(), 0);
 
@@ -94,17 +132,15 @@ Transformation* getConstFoldTransformation(Instruction *I){
         {
 
         case Instruction::Sub:
-            ilhs = dyn_cast<Instruction>(_lhs);
-            irhs = dyn_cast<Instruction>(_rhs);
             if(ilhs && irhs && ilhs->isIdenticalTo(irhs)) t->transformation = zero;
             else if(rhs.isZero) t->transformation = _lhs;
             break;
 
         case Instruction::Mul:
-            if(rhs.isOne) t->transformation = _lhs;
+            if(rhs.isZero) t->transformation = _rhs;
+            else if(lhs.isZero) t->transformation = _lhs;
+            else if(rhs.isOne) t->transformation = _lhs;
             else if(lhs.isOne) t->transformation = _rhs;
-            else if(rhs.isZero) t->transformation = zero;
-            else if(lhs.isZero) t->transformation = zero;
             break;
 
         case Instruction::AShr:
@@ -112,6 +148,34 @@ Transformation* getConstFoldTransformation(Instruction *I){
         case Instruction::Add:
             if(rhs.isZero) t->transformation = _lhs;
             else if(lhs.isZero) t->transformation = _rhs;
+            break;
+
+        case Instruction::URem:
+        case Instruction::SRem:
+        case Instruction::UDiv:
+        case Instruction::SDiv:
+            if(lhs.isZero) t->transformation = _lhs;
+            else if(rhs.isOne) t->transformation = _lhs;
+            break;
+
+        case Instruction::Or:
+            if(ilhs && irhs && ilhs->isIdenticalTo(irhs)) t->transformation = _lhs;
+            else if(rhs.isZero) t->transformation = _lhs;
+            else if(lhs.isZero) t->transformation = _rhs;
+            else if(lhs.isAllOnes && irhs && !irhs->mayHaveSideEffects()) t->transformation = _lhs;
+            else if(rhs.isAllOnes && ilhs && !ilhs->mayHaveSideEffects()) t->transformation = _rhs;
+            break;
+
+        case Instruction::And:
+            if(ilhs && irhs && ilhs->isIdenticalTo(irhs)) t->transformation = _lhs;
+            else if(rhs.isZero && ilhs && !ilhs->mayHaveSideEffects()) t->transformation = _rhs;
+            else if(lhs.isZero && irhs && !irhs->mayHaveSideEffects()) t->transformation = _lhs;
+            else if(rhs.isAllOnes) t->transformation = _lhs;
+            else if(lhs.isAllOnes) t->transformation = _rhs;
+            break;
+
+        case Instruction::Xor:
+            if(ilhs && irhs && ilhs->isIdenticalTo(irhs) && !ilhs->mayHaveSideEffects() && !irhs->mayHaveSideEffects()) t->transformation = zero;
             break;
         
         default:
@@ -129,10 +193,7 @@ bool transformationPass(Function &F, Transformation*(*transFunc)(Instruction*)){
     for(BasicBlock* BB : depth_first_ext(&F, reachableBlocks)){
         for(Instruction &I: *BB) {
             Transformation* transformation = transFunc(&I);
-            if(transformation->transformation) {
-                workList.push_back(transformation);
-            }
-            
+            if(transformation->transformation) workList.push_back(transformation);
         }
     }
 
@@ -142,13 +203,18 @@ bool transformationPass(Function &F, Transformation*(*transFunc)(Instruction*)){
         workList.erase(workList.begin());
         Instruction* I = t->I;
 
-
         SmallVector<std::pair<Instruction*, unsigned>, 32> users;
         for (User *U : I->users()) {
             if(Instruction* II = dyn_cast<Instruction>(U)){
-                Instruction* IU0 = dyn_cast<Instruction>(II->getOperand(0));
-                unsigned index = IU0 && I->isIdenticalTo(IU0) ? 0 : 1;
-                users.push_back(std::make_pair(II, index));
+                unsigned i = 0;
+                
+                for(Use &U: II->operands()){
+                    Instruction* IU = dyn_cast<Instruction>(U);
+                    if(IU && I->isIdenticalTo(IU)) break;
+                    i++;
+                }
+
+                users.push_back(std::make_pair(II, i));
             }
         }
 
@@ -159,9 +225,7 @@ bool transformationPass(Function &F, Transformation*(*transFunc)(Instruction*)){
             II->setOperand(p.second, t->transformation);
             
             Transformation* transformation = transFunc(II);
-            if(transformation->transformation) {
-                workList.push_back(transformation);
-            }
+            if(transformation->transformation) workList.push_back(transformation);
         }
 
         delete t;

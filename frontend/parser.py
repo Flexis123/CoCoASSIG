@@ -169,7 +169,7 @@ def p_loops(p):
                 | FOR LPAREN type ID ASSIGN expr TO expr RPAREN statement
     '''
     if(len(p) == 6):
-        p[0] = ast.WhileLoop(p[3], block(p[5]), False, "", None).at(loc(p, 1, 4))
+        p[0] = ast.WhileLoop(p[3], block(p[5]), False).at(loc(p, 1, 4))
     elif(len(p) == 8):
         p[0] = ast.DoWhileLoop(p[5], block(p[2])).at(loc(p, 3, 7))
     else:

@@ -3,12 +3,11 @@ from util import ASTTransformer
 import fennec_ast as ast
 
 class IrLoop:
-    def __init__(self, cond_block, body_block, end_block, is_for_loop, ind_var_inc):
+    def __init__(self, cond_block, body_block, end_block, is_for_loop):
         self.cond_block = cond_block
         self.body_block = body_block
         self.end_block = end_block
         self.is_for_loop = is_for_loop
-        self.ind_var_inc = ind_var_inc
 
 class IRGen(ASTTransformer):
     '''
@@ -174,7 +173,7 @@ class IRGen(ASTTransformer):
         while_body = self.add_block(prefix + ".whilebody")
         while_end = self.add_block(prefix + ".whileend")
 
-        self.loops.append(IrLoop(while_cond, while_body, while_end, node.desugared, node.ind_var_inc))
+        self.loops.append(IrLoop(while_cond, while_body, while_end, node.desugared))
 
         self.builder.branch(while_cond)
         self.builder.position_at_start(while_cond)
@@ -195,7 +194,7 @@ class IRGen(ASTTransformer):
         do_while_cond = self.add_block(prefix + ".docond")
         do_while_end = self.add_block(prefix + ".doend")
 
-        self.loops.append(IrLoop(do_while_cond, do_while_body, do_while_end, False, ""))
+        self.loops.append(IrLoop(do_while_cond, do_while_body, do_while_end, False))
 
         self.builder.branch(do_while_body)
         self.builder.position_at_start(do_while_body)
@@ -213,22 +212,16 @@ class IRGen(ASTTransformer):
 
     def visitBreak(self, node):
         self.builder.branch(self.loops[-1].end_block) #also putt a block
-        self.builder = ir.IRBuilder(self.add_block())
+        self.builder.position_at_start(self.add_block())
 
     
     def visitContinue(self, node):
         target_loop = self.loops[-1]
         if(target_loop.is_for_loop):
-            self.visit_children(target_loop.ind_var_inc)
-
-            with open("dbg.txt", "a") as f:
-                f.write(f"{self.builder.module}\n")
-            self.builder.branch(target_loop.cond_block)
-
-            self.builder = ir.IRBuilder(self.add_block())
+            pass
         else:
             self.builder.branch(target_loop.cond_block)
-            self.builder = ir.IRBuilder(self.add_block())
+            self.builder.position_at_start(self.add_block())
 
     def visitReturn(self, node):
         self.visit_children(node)

@@ -46,5 +46,5 @@ class Desugarer(ASTTransformer):
             WhileLoop(while_cond, Block([
                 m.body,
                 var_ind_inc
-            ]), True, var_ind_inc)
+            ]), True)
         ])]

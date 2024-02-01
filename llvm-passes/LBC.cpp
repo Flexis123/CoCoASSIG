@@ -12,20 +12,41 @@ namespace {
     };
 }
 
+class FunctionModificationInfo{
+    public:
+        DenseMap<int, int> argSizeMap;
+        ArrayRef<llvm::Type*> newParamTypes;
+
+        FunctionModificationInfo(DenseMap<int, int> argSizeMap, ArrayRef<llvm::Type *> newParamTypes){
+            this->argSizeMap = argSizeMap;
+            this->newParamTypes = newParamTypes;
+        }
+
+        FunctionModificationInfo(){}
+};
+
 Value* accumulatedOffsetOf(Module &M, GetElementPtrInst* gep){
     IntegerType* t = Type::getInt32Ty(M.getContext());
-    APInt offsetVal = ConstantInt::get(t, 0, true)->getValue();
 
-    ConstantInt* currOfsset;
+    APInt constOffsetVal = ConstantInt::get(t, 0, true)->getValue();
+    Value* res = nullptr;
+    IRBuilder<> B(gep);
+    GetElementPtrInst* currGep = gep;
     do{
-        if(gep->getNumOperands() > 1 && !(currOfsset = dyn_cast<ConstantInt>(gep->getOperand(1)))){
-            return NULL;
-        }else if(gep->getNumOperands() > 1){
-            offsetVal += currOfsset->getValue();
+        if(currGep->getNumOperands() > 2) return NULL;
+        else if(currGep->getNumOperands() == 2){
+
+            Value* currOffset = currGep->getOperand(1);
+
+            if(ConstantInt* off = dyn_cast<ConstantInt>(currOffset)) constOffsetVal += off->getValue();
+            else if(res) res = B.CreateAdd(res, currOffset);
+            else res = currOffset;
         }
-    }while((gep = dyn_cast<GetElementPtrInst>(gep->getOperand(0))));
-    
-    return ConstantInt::get(t, offsetVal);
+    }while((currGep = dyn_cast<GetElementPtrInst>(currGep->getOperand(0))));
+
+    ConstantInt* constOffset = cast<ConstantInt>(ConstantInt::get(t, constOffsetVal));
+    if(res && !constOffset->isZero()) return B.CreateAdd(res, constOffset);
+    return constOffset;
 }
 
 inline bool isConstPtr(Value* v){
@@ -35,7 +56,7 @@ inline bool isConstPtr(Value* v){
     TODO CHECK
  If, your code encounters any unknown type of origin, it should raise an error.
 */
-Value &getPointerOrigin(GetElementPtrInst* gep){
+Value &getPointerOrigin(Instruction* gep){
     Instruction* I = gep;
 
     while (true){
@@ -55,45 +76,97 @@ Value &getPointerOrigin(GetElementPtrInst* gep){
     }
 }
 
-Value* getPointerElemNum(Value &v){
+Value* getPointerElemNum(Value &v,  DenseMap<Function*, FunctionModificationInfo> &clonedFnArgSizeMap){
     Value *V = &v;
     Argument* arg;
     Function* f;
 
     if(AllocaInst* alloca = dyn_cast<AllocaInst>(V)) return alloca->getOperand(0);
     else if(isConstPtr(V)) return V;
-    else if((arg = dyn_cast<Argument>(V)) && (f = arg->getParent()) && f->getName().equals("main")){
-        return f->getArg(0); //ARGC
-    }
+    else if((arg = dyn_cast<Argument>(V)) && arg->getType()->isPointerTy() && (f = arg->getParent())){
+        if(f->getName().equals("main")) return f->getArg(0); // todo make argc + 1 if needed
+        else{
+            auto it = clonedFnArgSizeMap.find(f);
+            if(it != clonedFnArgSizeMap.end()) {
+                DenseMap<int, int> argSizeMap = (*it).second.argSizeMap;
+                
+                auto it2 = argSizeMap.find(arg->getArgNo());
+                if(it2 != argSizeMap.end()) return f->getArg((*it2).second);
+            }
+        }
+    } 
+    
     return NULL;
 }
 
 bool BoundsChecker::runOnModule(Module &M) {
-    Type *Int32Ty = Type::getInt32Ty(M.getContext());
-    Function* bounds_check_fn = cast<Function>(M.getOrInsertFunction("__coco_check_bounds", Int32Ty, Int32Ty).getCallee());
+    LLVMContext &ctx = M.getContext();
+    Type *Int32Ty = Type::getInt32Ty(ctx);
+    Type *VoidTy = Type::getVoidTy(ctx);
+    Function* bounds_check_fn = cast<Function>(M.getOrInsertFunction("__coco_check_bounds", VoidTy, Int32Ty, Int32Ty).getCallee());
+
+    DenseMap<Function*, FunctionModificationInfo> clonedFnArgSizeMap;
 
     bool changed = false;
     for (Function &F : M) {
         if (!shouldInstrument(&F))
             continue;
 
-        IRBuilder<> B(&F.getEntryBlock());
+        for(Instruction &I: instructions(F)){
+            if(CallInst* call = dyn_cast<CallInst>(&I)){
+
+                Function* fn = call->getFunction();
+                FunctionModificationInfo fnInf;
+                auto argSizeMapEntry = clonedFnArgSizeMap.find(fn);
+
+                if(argSizeMapEntry == clonedFnArgSizeMap.end()){
+
+                    DenseMap<int, int> argSizeMap = DenseMap<int, int>();
+                    SmallVector<Type*, 5> newTypes;
+                    unsigned sizeIndex = 0;
+
+                    for(Use &U: call->operands()){
+                        Value* v = U.get();
+                        Instruction* II;
+                        Value* elemNum;
+                        if((dyn_cast<Instruction>(v)) && II->getType()->isPointerTy()){
+                            if(Value* elemNum = getPointerElemNum(getPointerOrigin(II), clonedFnArgSizeMap)){
+                                argSizeMap.try_emplace(U.getOperandNo(), sizeIndex);
+                                sizeIndex++;
+                            }
+                        }
+                    }
+
+                    fnInf = FunctionModificationInfo(argSizeMap, ArrayRef<Type*>(newTypes));
+                    clonedFnArgSizeMap.try_emplace(fn, argSizeMap);
+                }
+
+                SmallVector<Argument*, 5> newArgs;
+                Function* newFn = addParamsToFunction(fn, fnInf.newParamTypes, newArgs);
+                ReplaceInstWithInst(call, CallInst::Create(fn));
+
+
+            }
+        }
 
         GetElementPtrInst *gep;
-        for(BasicBlock &BB : F){
-            for(Instruction &I: BB){
-                if((gep = dyn_cast<GetElementPtrInst>(&I)) && gep->getNumOperands() < 3){
-                    Value* accOffset = accumulatedOffsetOf(M, gep);
-                    Value &orig = getPointerOrigin(gep);
-                    Value* arraySize = getPointerElemNum(orig);
+        for(Instruction &I: instructions(F)){
+            if((gep = dyn_cast<GetElementPtrInst>(&I)) && gep->getNumOperands() < 3){
+                Value* accOffset = accumulatedOffsetOf(M, gep);
+                Value &orig = getPointerOrigin(gep);
+                Value* arraySize = getPointerElemNum(orig, clonedFnArgSizeMap);
 
-                    B.SetInsertPoint(gep);
-                    B.CreateCall(bounds_check_fn);
+                //todo check if orig is argc
+            
+                changed |= accOffset && arraySize;
 
-                    changed = true;
+                if(changed){
+                    IRBuilder<> B(gep);
+                    B.CreateCall(bounds_check_fn, {accOffset, arraySize});
                 }
             }
         }
+    
     }
 
     return changed;

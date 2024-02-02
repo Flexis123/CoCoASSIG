@@ -34,11 +34,24 @@ Value* accumulatedOffsetOf(Module &M, GetElementPtrInst* gep){
 
     ConstantInt* constOffset = cast<ConstantInt>(ConstantInt::get(t, constOffsetVal));
     if(res && !constOffset->isZero()) return B.CreateAdd(res, constOffset);
+    else if(res) return res;
     return constOffset;
 }
 
+inline bool isConstPtr(Value* v, Value** size = nullptr){
+    Type *Int32Ty = Type::getInt32Ty(v->getContext());
+    if(PointerType* ptr = dyn_cast<PointerType>(v->getType())){
+        if(ArrayType *arr = dyn_cast<ArrayType>(ptr->getElementType())){
+            if(size) *size = ConstantInt::get(Int32Ty, arr->getNumElements(), true);
+
+            return true;
+        }
+    }
+    return false;
+}
+
 inline bool isOrigin(Value* v){
-    return dyn_cast<LoadInst>(v) || dyn_cast<AllocaInst>(v) || dyn_cast<ConstantInt>(v) || dyn_cast<Argument>(v) || dyn_cast<CallInst>(v);
+    return dyn_cast<LoadInst>(v) || dyn_cast<AllocaInst>(v) || isConstPtr(v) || dyn_cast<Argument>(v) || dyn_cast<CallInst>(v);
 }
 /*
     TODO CHECK
@@ -62,13 +75,16 @@ Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> fnClo
     Value *V = &v;
     Argument* arg;
     Function* f;
+    Value* constSize;
+
+    Type *Int32Ty = Type::getInt32Ty(v.getContext());
 
     //deal with constants and loads and calls (load and calls assume max size 8192)
     if(AllocaInst* alloca = dyn_cast<AllocaInst>(V)) {
         return alloca->getOperand(0);
     }
     else if(dyn_cast<LoadInst>(V) || dyn_cast<CallInst>(V)) {
-        return ConstantInt::get(Type::getInt32Ty(v.getContext()), 8192, true);
+        return ConstantInt::get(Int32Ty, 8192, true);
     }
     else if((arg = dyn_cast<Argument>(V)) && arg->getType()->isPointerTy() && (f = arg->getParent())){
         if(f->getName().equals("main")) return f->getArg(0); // todo make argc + 1 if needed
@@ -82,6 +98,9 @@ Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> fnClo
             }
         }
     } 
+    else if(isConstPtr(V, &constSize)){
+        return constSize;
+    }
     
     return NULL;
 }
@@ -134,12 +153,7 @@ bool BoundsChecker::runOnModule(Module &M) {
 
             //add cloned fn
             clonedFns.try_emplace(F, cloneFn); 
-
         }
-    }
-
-    for(const auto& elem: clonedFns){
-        LOG_LINE("cloned: " << elem.first << ", clone: " << elem.second);
     }
 
     for (Function &F : M) {
@@ -147,14 +161,12 @@ bool BoundsChecker::runOnModule(Module &M) {
             continue;
 
 
-        SmallVector<std::pair<Instruction*, Instruction*>> toRepalce;
+        SmallVector<std::pair<Instruction*, Instruction*>, 10> toRepalce;
         for(Instruction &I: instructions(F)){
             if(CallInst* call = dyn_cast<CallInst>(&I)){
-
-                LOG_LINE("Searching for: " << call->getCalledFunction() << " " << *call);
                 auto fCloneEntry = clonedFns.find(call->getCalledFunction());
 
-                if(fCloneEntry != clonedFns.end()){
+                if(fCloneEntry != clonedFns.end() && clonedFns.find(call->getFunction()) == clonedFns.end()){
                     Function* cloneF = (*fCloneEntry).second;
 
                     SmallVector<Value*, 5> sizes;
@@ -170,17 +182,28 @@ bool BoundsChecker::runOnModule(Module &M) {
                     SmallVector<Value*, 10> cloneArgs;
                     for(Use &U: call->args()) cloneArgs.push_back(U.get());
                     for(Value* size: sizes) cloneArgs.push_back(size);
-
-                    CallInst* cloneCall = CallInst::Create(cloneF->getFunctionType(), cloneF, ArrayRef<Value*>(cloneArgs));
-                    toRepalce.push_back(std::make_pair(call, cloneCall))
-                   // ReplaceInstWithInst(call, cloneCall);
-
                     
+ 
+                    CallInst* cloneCall = CallInst::Create(cloneF->getFunctionType(), cloneF, ArrayRef<Value*>(cloneArgs));
+                    toRepalce.push_back(std::make_pair(call, cloneCall));
                 }
             }
         }
+
+        for(auto rep: toRepalce) ReplaceInstWithInst(rep.first, rep.second);
     }
-    
+
+    //removing cloned functions
+    for(auto& elem: clonedFns) {
+        SmallVector<Instruction*, 10> toRemove;
+        for(Instruction &I : instructions(*elem.first)){
+            if(CallInst* call = dyn_cast<CallInst>(&I)) toRemove.push_back(call);
+        }
+
+        for(Instruction* I : toRemove) I->eraseFromParent();
+    }
+
+    for(auto& elem: clonedFns) elem.first->eraseFromParent();
 
     for (Function &F : M) {
         if (!shouldInstrument(&F))

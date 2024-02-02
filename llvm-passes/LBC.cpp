@@ -21,8 +21,7 @@ Value* accumulatedOffsetOf(Module &M, GetElementPtrInst* gep){
     IRBuilder<> B(gep);
     GetElementPtrInst* currGep = gep;
     do{
-        if(currGep->getNumOperands() > 2) return NULL;
-        else if(currGep->getNumOperands() == 2){
+        if(currGep->getNumOperands() == 2){
 
             Value* currOffset = currGep->getOperand(1);
 
@@ -220,6 +219,7 @@ bool BoundsChecker::runOnModule(Module &M) {
                 Value* arraySize = getPointerElemNum(orig, fnClones);
 
                 //todo check if orig is argc
+                LOG_LINE("acc offset for: " << I << " is " << accOffset);
             
                 changed |= accOffset && arraySize;
 

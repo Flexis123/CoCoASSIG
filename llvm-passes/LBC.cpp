@@ -1,5 +1,6 @@
 #define DEBUG_TYPE "BoundsChecker"
 #include "utils.h"
+#include <map>
 
 namespace {
     class BoundsChecker : public ModulePass {
@@ -11,19 +12,6 @@ namespace {
     private:
     };
 }
-
-class FunctionModificationInfo{
-    public:
-        DenseMap<int, int> argSizeMap;
-        ArrayRef<llvm::Type*> newParamTypes;
-
-        FunctionModificationInfo(DenseMap<int, int> argSizeMap, ArrayRef<llvm::Type *> newParamTypes){
-            this->argSizeMap = argSizeMap;
-            this->newParamTypes = newParamTypes;
-        }
-
-        FunctionModificationInfo(){}
-};
 
 Value* accumulatedOffsetOf(Module &M, GetElementPtrInst* gep){
     IntegerType* t = Type::getInt32Ty(M.getContext());
@@ -49,46 +37,45 @@ Value* accumulatedOffsetOf(Module &M, GetElementPtrInst* gep){
     return constOffset;
 }
 
-inline bool isConstPtr(Value* v){
-    return dyn_cast<ConstantInt>(v) && v->getType()->isPointerTy();
+inline bool isOrigin(Value* v){
+    return dyn_cast<LoadInst>(v) || dyn_cast<AllocaInst>(v) || dyn_cast<ConstantInt>(v) || dyn_cast<Argument>(v) || dyn_cast<CallInst>(v);
 }
 /*
     TODO CHECK
  If, your code encounters any unknown type of origin, it should raise an error.
 */
-Value &getPointerOrigin(Instruction* gep){
-    Instruction* I = gep;
-
-    while (true){
-        bool foundNext = false;
-
-        for(Use &U: I->operands()){
-            Value *v = U.get();
-
-            if(dyn_cast<LoadInst>(v) || dyn_cast<AllocaInst>(v) || isConstPtr(v) || dyn_cast<Argument>(v) || dyn_cast<CallInst>(v))  return *v;
-            else if((I = dyn_cast<Instruction>(v)) && I->getType()->isPointerTy()) {
-                foundNext = true;
-                break;
+Value &getPointerOrigin(Value* v){
+    Instruction *I;
+    while (!isOrigin(v)){
+        if((I = dyn_cast<Instruction>(v))){
+            for(Use &U: I->operands()){
+                v = U.get();
+                if(v->getType()->isPointerTy()) break;
             }
-        }
-
-        assert(foundNext);
+        }else ERROR("Error: pointer has unsupported origin\n");
     }
+
+    return *v;
 }
 
-Value* getPointerElemNum(Value &v,  DenseMap<Function*, FunctionModificationInfo> &clonedFnArgSizeMap){
+Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> fnClones){
     Value *V = &v;
     Argument* arg;
     Function* f;
 
-    if(AllocaInst* alloca = dyn_cast<AllocaInst>(V)) return alloca->getOperand(0);
-    else if(isConstPtr(V)) return V;
+    //deal with constants and loads and calls (load and calls assume max size 8192)
+    if(AllocaInst* alloca = dyn_cast<AllocaInst>(V)) {
+        return alloca->getOperand(0);
+    }
+    else if(dyn_cast<LoadInst>(V) || dyn_cast<CallInst>(V)) {
+        return ConstantInt::get(Type::getInt32Ty(v.getContext()), 8192, true);
+    }
     else if((arg = dyn_cast<Argument>(V)) && arg->getType()->isPointerTy() && (f = arg->getParent())){
         if(f->getName().equals("main")) return f->getArg(0); // todo make argc + 1 if needed
         else{
-            auto it = clonedFnArgSizeMap.find(f);
-            if(it != clonedFnArgSizeMap.end()) {
-                DenseMap<int, int> argSizeMap = (*it).second.argSizeMap;
+            auto it = fnClones.find(f);
+            if(it != fnClones.end()) {
+                DenseMap<int, int> argSizeMap = (*it).second;
                 
                 auto it2 = argSizeMap.find(arg->getArgNo());
                 if(it2 != argSizeMap.end()) return f->getArg((*it2).second);
@@ -105,62 +92,115 @@ bool BoundsChecker::runOnModule(Module &M) {
     Type *VoidTy = Type::getVoidTy(ctx);
     Function* bounds_check_fn = cast<Function>(M.getOrInsertFunction("__coco_check_bounds", VoidTy, Int32Ty, Int32Ty).getCallee());
 
-    DenseMap<Function*, FunctionModificationInfo> clonedFnArgSizeMap;
+    DenseMap<Function*, Function*> clonedFns;
+    DenseMap<Function*, DenseMap<int, int>> fnClones;
 
     bool changed = false;
+
+    SmallVector<Function*, 15> cloneCandidates;
+    for (Function &F : M) {
+        if(shouldInstrument(&F) && !F.getName().equals("main")){
+            cloneCandidates.push_back(&F);
+        }
+    }
+
+    for(auto* elem: cloneCandidates){
+        LOG_LINE("clone candidate: " << elem->getName());
+    }
+
+    for (Function* F : cloneCandidates) {
+        DenseMap<int, int> ptrSize;
+        SmallVector<Type*, 5> newArgsTypes;
+    
+        //find pointer arguments
+        unsigned pointers = 0;
+        for(Argument &arg: F->args()){
+            if(arg.getType()->isPointerTy()){
+                ptrSize.try_emplace(arg.getArgNo(), pointers + F->arg_size());
+                pointers++;
+
+                newArgsTypes.push_back(Int32Ty);
+            }
+        }
+    
+        changed |= !ptrSize.empty();
+
+        if(!ptrSize.empty()){
+
+            //clone function
+            SmallVector<Argument*, 10> cloneArgs;
+            Function* cloneFn = addParamsToFunction(F, ArrayRef<Type*>(newArgsTypes), cloneArgs);
+            fnClones.try_emplace(cloneFn, ptrSize);
+
+            //add cloned fn
+            clonedFns.try_emplace(F, cloneFn); 
+
+        }
+    }
+
+    for(const auto& elem: clonedFns){
+        LOG_LINE("cloned: " << elem.first << ", clone: " << elem.second);
+    }
+
     for (Function &F : M) {
         if (!shouldInstrument(&F))
             continue;
 
+
+        SmallVector<std::pair<Instruction*, Instruction*>> toRepalce;
         for(Instruction &I: instructions(F)){
             if(CallInst* call = dyn_cast<CallInst>(&I)){
 
-                Function* fn = call->getFunction();
-                FunctionModificationInfo fnInf;
-                auto argSizeMapEntry = clonedFnArgSizeMap.find(fn);
+                LOG_LINE("Searching for: " << call->getCalledFunction() << " " << *call);
+                auto fCloneEntry = clonedFns.find(call->getCalledFunction());
 
-                if(argSizeMapEntry == clonedFnArgSizeMap.end()){
+                if(fCloneEntry != clonedFns.end()){
+                    Function* cloneF = (*fCloneEntry).second;
 
-                    DenseMap<int, int> argSizeMap = DenseMap<int, int>();
-                    SmallVector<Type*, 5> newTypes;
-                    unsigned sizeIndex = 0;
-
-                    for(Use &U: call->operands()){
+                    SmallVector<Value*, 5> sizes;
+                    for(Use &U: call->args()){
                         Value* v = U.get();
-                        Instruction* II;
                         Value* elemNum;
-                        if((dyn_cast<Instruction>(v)) && II->getType()->isPointerTy()){
-                            if(Value* elemNum = getPointerElemNum(getPointerOrigin(II), clonedFnArgSizeMap)){
-                                argSizeMap.try_emplace(U.getOperandNo(), sizeIndex);
-                                sizeIndex++;
-                            }
+
+                        if(v->getType()->isPointerTy() && (elemNum = getPointerElemNum(getPointerOrigin(v), fnClones))){
+                            sizes.push_back(elemNum);
                         }
                     }
 
-                    fnInf = FunctionModificationInfo(argSizeMap, ArrayRef<Type*>(newTypes));
-                    clonedFnArgSizeMap.try_emplace(fn, argSizeMap);
+                    SmallVector<Value*, 10> cloneArgs;
+                    for(Use &U: call->args()) cloneArgs.push_back(U.get());
+                    for(Value* size: sizes) cloneArgs.push_back(size);
+
+                    CallInst* cloneCall = CallInst::Create(cloneF->getFunctionType(), cloneF, ArrayRef<Value*>(cloneArgs));
+                    toRepalce.push_back(std::make_pair(call, cloneCall))
+                   // ReplaceInstWithInst(call, cloneCall);
+
+                    
                 }
-
-                SmallVector<Argument*, 5> newArgs;
-                Function* newFn = addParamsToFunction(fn, fnInf.newParamTypes, newArgs);
-                ReplaceInstWithInst(call, CallInst::Create(fn));
-
-
             }
         }
+    }
+    
 
+    for (Function &F : M) {
+        if (!shouldInstrument(&F))
+            continue;
+
+        //mutate function calls to pass pointer size
+
+        //introduce bound check 
         GetElementPtrInst *gep;
         for(Instruction &I: instructions(F)){
             if((gep = dyn_cast<GetElementPtrInst>(&I)) && gep->getNumOperands() < 3){
                 Value* accOffset = accumulatedOffsetOf(M, gep);
                 Value &orig = getPointerOrigin(gep);
-                Value* arraySize = getPointerElemNum(orig, clonedFnArgSizeMap);
+                Value* arraySize = getPointerElemNum(orig, fnClones);
 
                 //todo check if orig is argc
             
                 changed |= accOffset && arraySize;
 
-                if(changed){
+                if(accOffset && arraySize){
                     IRBuilder<> B(gep);
                     B.CreateCall(bounds_check_fn, {accOffset, arraySize});
                 }
@@ -168,6 +208,8 @@ bool BoundsChecker::runOnModule(Module &M) {
         }
     
     }
+
+    //delete all cloned functions
 
     return changed;
 }

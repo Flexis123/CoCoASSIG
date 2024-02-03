@@ -10,10 +10,22 @@ namespace {
         virtual bool runOnModule(Module &M) override;
 
     private:
+        DenseMap<Function*, DenseMap<int, int>> fnClones;
+        DenseMap<PHINode*, PHINode*> annotatedPhis;
+        Value* newArgc = nullptr;
+
+        Value* accumulatedOffsetOf(Module &M, GetElementPtrInst* gep);
+        inline bool isConstPtr(Value* v, Value** size = nullptr);
+        inline bool isOrigin(Value* v);
+        Value &getPointerOrigin(Value* v);
+
+        Value* getPointerElemNum(Value &v);
+        PHINode* addSizePhi(PHINode* phi);
+
     };
 }
 
-Value* accumulatedOffsetOf(Module &M, GetElementPtrInst* gep){
+Value* BoundsChecker::accumulatedOffsetOf(Module &M, GetElementPtrInst* gep){
     IntegerType* t = Type::getInt32Ty(M.getContext());
 
     APInt constOffsetVal = ConstantInt::get(t, 0, true)->getValue();
@@ -37,7 +49,7 @@ Value* accumulatedOffsetOf(Module &M, GetElementPtrInst* gep){
     return constOffset;
 }
 
-inline bool isConstPtr(Value* v, Value** size = nullptr){
+inline bool BoundsChecker::isConstPtr(Value* v, Value** size){
     Type *Int32Ty = Type::getInt32Ty(v->getContext());
     if(PointerType* ptr = dyn_cast<PointerType>(v->getType())){
         if(ArrayType *arr = dyn_cast<ArrayType>(ptr->getElementType())){
@@ -49,15 +61,12 @@ inline bool isConstPtr(Value* v, Value** size = nullptr){
     return false;
 }
 
-inline bool isOrigin(Value* v){
+inline bool BoundsChecker::isOrigin(Value* v){
     return dyn_cast<LoadInst>(v) || dyn_cast<AllocaInst>(v) || isConstPtr(v) || dyn_cast<Argument>(v) 
             || dyn_cast<CallInst>(v) || dyn_cast<PHINode>(v);
 }
-/*
-    TODO CHECK
- If, your code encounters any unknown type of origin, it should raise an error.
-*/
-Value &getPointerOrigin(Value* v){
+
+Value& BoundsChecker::getPointerOrigin(Value* v){
     Instruction *I;
     while (!isOrigin(v)){
         if((I = dyn_cast<Instruction>(v))){
@@ -72,7 +81,7 @@ Value &getPointerOrigin(Value* v){
 }
 
 
-Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> &fnClones, DenseMap<PHINode*, PHINode*> &annotatedPhis){
+Value* BoundsChecker::getPointerElemNum(Value &v){
     Value *V = &v;
     Argument* arg;
     Function* f;
@@ -88,9 +97,7 @@ Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> &fnCl
         return ConstantInt::get(Int32Ty, 8192, true);
     }
     else if((arg = dyn_cast<Argument>(V)) && arg->getType()->isPointerTy() && (f = arg->getParent())){
-        if(f->getName().equals("main")){
-           
-        }
+        if(f->getName().equals("main")) return newArgc;
         else{
             auto it = fnClones.find(f);
             if(it != fnClones.end()) {
@@ -111,7 +118,7 @@ Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> &fnCl
 }
 
 
-PHINode* addSizePhi(PHINode* phi, DenseMap<PHINode*, PHINode*> &annotatedPhis, DenseMap<Function *, DenseMap<int, int>> &fnClones){
+PHINode* BoundsChecker::addSizePhi(PHINode* phi){
     LOG_LINE("phi = " << phi);
     auto annotatedPhiEntry = annotatedPhis.find(phi);
     
@@ -121,14 +128,13 @@ PHINode* addSizePhi(PHINode* phi, DenseMap<PHINode*, PHINode*> &annotatedPhis, D
     PHINode* sizePhi = B.CreatePHI(Type::getInt32Ty(phi->getContext()), phi->getNumOperands(), phi->getName() + ".size");
 
     annotatedPhis.try_emplace(phi, sizePhi);
-   
-    
+     
     SmallVector<Value*, 5> sizes;
     for(Use& U: phi->incoming_values()){
         Value* v = U.get();
 
-        if(PHINode* inPhi = dyn_cast<PHINode>(v)) sizes.push_back(addSizePhi(inPhi, annotatedPhis, fnClones));
-        else if(Value* elemNum = getPointerElemNum(getPointerOrigin(v) , fnClones, annotatedPhis)) sizes.push_back(elemNum);
+        if(PHINode* inPhi = dyn_cast<PHINode>(v)) sizes.push_back(addSizePhi(inPhi));
+        else if(Value* elemNum = getPointerElemNum(getPointerOrigin(v))) sizes.push_back(elemNum);
         else ERROR("Error when annotating pointer phi node, couldnt find pointer size");
     }
 
@@ -139,14 +145,21 @@ PHINode* addSizePhi(PHINode* phi, DenseMap<PHINode*, PHINode*> &annotatedPhis, D
     return sizePhi;
 }
 
+
 bool BoundsChecker::runOnModule(Module &M) {
     LLVMContext &ctx = M.getContext();
     Type *Int32Ty = Type::getInt32Ty(ctx);
     Type *VoidTy = Type::getVoidTy(ctx);
     Function* bounds_check_fn = cast<Function>(M.getOrInsertFunction("__coco_check_bounds", VoidTy, Int32Ty, Int32Ty).getCallee());
 
+    //change argc for main to be argc + 1;
+    //augmentArgc(M);
+    if(Function* main = M.getFunction("main")){
+        IRBuilder<> B(&*main->getEntryBlock().getFirstInsertionPt());
+        newArgc = B.CreateAdd(main->getArg(0), ConstantInt::get(Type::getInt32Ty(M.getContext()), 1));
+    }
+
     DenseMap<Function*, Function*> clonedFns;
-    DenseMap<Function*, DenseMap<int, int>> fnClones;
 
     bool changed = false;
     for (Function &F : M) {
@@ -195,7 +208,7 @@ bool BoundsChecker::runOnModule(Module &M) {
             if((phi = dyn_cast<PHINode>(&I)) && phi->getType()->isPointerTy()) ptrPhis.push_back(phi);
         }
 
-        for(PHINode* phi : ptrPhis) addSizePhi(phi, annotatedPhis, fnClones);
+        for(PHINode* phi : ptrPhis) addSizePhi(phi);
     }
 
     for (Function &F : M) {
@@ -216,7 +229,7 @@ bool BoundsChecker::runOnModule(Module &M) {
                         Value* v = U.get();
                         Value* elemNum;
 
-                        if(v->getType()->isPointerTy() && (elemNum = getPointerElemNum(getPointerOrigin(v), fnClones, annotatedPhis))){
+                        if(v->getType()->isPointerTy() && (elemNum = getPointerElemNum(getPointerOrigin(v)))){
                             sizes.push_back(elemNum);
                         }
                     }
@@ -259,12 +272,14 @@ bool BoundsChecker::runOnModule(Module &M) {
             if((gep = dyn_cast<GetElementPtrInst>(&I)) && gep->getNumOperands() < 3){
                 Value* accOffset = accumulatedOffsetOf(M, gep);
                 Value &orig = getPointerOrigin(gep);
-                Value* arraySize = getPointerElemNum(orig, fnClones, annotatedPhis);
+                Value* arraySize = getPointerElemNum(orig);
 
-                //todo check if orig is argc
+                Argument* argc;
+                
+                if((argc = dyn_cast<Argument>(arraySize)) && argc->getParent()->getName().equals("main")){
+                    
+                }
 
-                LOG_LINE("accOffset: " << accOffset);
-                LOG_LINE("arraySize: " << arraySize);
             
                 changed |= accOffset && arraySize;
 

@@ -1,0 +1,5 @@
+int main(int argc, char[][] argv) {
+  int[100] a;
+
+  return a[argc];
+}

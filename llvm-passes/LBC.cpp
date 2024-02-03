@@ -274,13 +274,6 @@ bool BoundsChecker::runOnModule(Module &M) {
                 Value &orig = getPointerOrigin(gep);
                 Value* arraySize = getPointerElemNum(orig);
 
-                Argument* argc;
-                
-                if((argc = dyn_cast<Argument>(arraySize)) && argc->getParent()->getName().equals("main")){
-                    
-                }
-
-            
                 changed |= accOffset && arraySize;
 
                 if(accOffset && arraySize){

@@ -72,7 +72,7 @@ Value &getPointerOrigin(Value* v){
 }
 
 
-Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> fnClones){
+Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> &fnClones, DenseMap<PHINode*, PHINode*> &annotatedPhis){
     Value *V = &v;
     Argument* arg;
     Function* f;
@@ -101,8 +101,10 @@ Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> fnClo
             }
         }
     } 
-    else if(isConstPtr(V, &constSize)){
-        return constSize;
+    else if(isConstPtr(V, &constSize)) return constSize;
+    else if(PHINode* phi = dyn_cast<PHINode>(V)) {
+        auto annotattedPhiEntry = annotatedPhis.find(phi);
+        if(annotattedPhiEntry != annotatedPhis.end()) return (*annotattedPhiEntry).second;
     }
     
     return NULL;
@@ -110,26 +112,30 @@ Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> fnClo
 
 
 PHINode* addSizePhi(PHINode* phi, DenseMap<PHINode*, PHINode*> &annotatedPhis, DenseMap<Function *, DenseMap<int, int>> &fnClones){
-
+    LOG_LINE("phi = " << phi);
     auto annotatedPhiEntry = annotatedPhis.find(phi);
+    
     if(annotatedPhiEntry != annotatedPhis.end()) return (*annotatedPhiEntry).second;
+    
+    IRBuilder<> B(phi->getNextNode());
+    PHINode* sizePhi = B.CreatePHI(Type::getInt32Ty(phi->getContext()), phi->getNumOperands(), phi->getName() + ".size");
+
+    annotatedPhis.try_emplace(phi, sizePhi);
+   
     
     SmallVector<Value*, 5> sizes;
     for(Use& U: phi->incoming_values()){
         Value* v = U.get();
 
         if(PHINode* inPhi = dyn_cast<PHINode>(v)) sizes.push_back(addSizePhi(inPhi, annotatedPhis, fnClones));
-        else if(Value* elemNum = getPointerElemNum(getPointerOrigin(v) ,fnClones)) sizes.push_back(v);
+        else if(Value* elemNum = getPointerElemNum(getPointerOrigin(v) , fnClones, annotatedPhis)) sizes.push_back(elemNum);
         else ERROR("Error when annotating pointer phi node, couldnt find pointer size");
     }
 
-    PHINode* sizePhi = PHINode::Create(Type::getInt32Ty(phi->getContext()), phi->getNumOperands());
     for(unsigned i = 0; i < sizes.size(); i++) {
-        sizePhi->setIncomingValueForBlock(phi->getIncomingBlock(i), sizes[i]);
+        sizePhi->addIncoming(sizes[i], phi->getIncomingBlock(i));
     }
-    phi->insertAfter(sizePhi);
 
-    annotatedPhis.try_emplace(phi, sizePhi);
     return sizePhi;
 }
 
@@ -178,6 +184,7 @@ bool BoundsChecker::runOnModule(Module &M) {
     }
 
     //here do phi stuff
+    DenseMap<PHINode*, PHINode*> annotatedPhis;
     for(Function &F : M){
         if (!shouldInstrument(&F))
             continue;
@@ -188,7 +195,6 @@ bool BoundsChecker::runOnModule(Module &M) {
             if((phi = dyn_cast<PHINode>(&I)) && phi->getType()->isPointerTy()) ptrPhis.push_back(phi);
         }
 
-        DenseMap<PHINode*, PHINode*> annotatedPhis;
         for(PHINode* phi : ptrPhis) addSizePhi(phi, annotatedPhis, fnClones);
     }
 
@@ -210,7 +216,7 @@ bool BoundsChecker::runOnModule(Module &M) {
                         Value* v = U.get();
                         Value* elemNum;
 
-                        if(v->getType()->isPointerTy() && (elemNum = getPointerElemNum(getPointerOrigin(v), fnClones))){
+                        if(v->getType()->isPointerTy() && (elemNum = getPointerElemNum(getPointerOrigin(v), fnClones, annotatedPhis))){
                             sizes.push_back(elemNum);
                         }
                     }
@@ -253,9 +259,12 @@ bool BoundsChecker::runOnModule(Module &M) {
             if((gep = dyn_cast<GetElementPtrInst>(&I)) && gep->getNumOperands() < 3){
                 Value* accOffset = accumulatedOffsetOf(M, gep);
                 Value &orig = getPointerOrigin(gep);
-                Value* arraySize = getPointerElemNum(orig, fnClones);
+                Value* arraySize = getPointerElemNum(orig, fnClones, annotatedPhis);
 
                 //todo check if orig is argc
+
+                LOG_LINE("accOffset: " << accOffset);
+                LOG_LINE("arraySize: " << arraySize);
             
                 changed |= accOffset && arraySize;
 

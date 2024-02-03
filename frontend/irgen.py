@@ -151,10 +151,6 @@ class IRGen(ASTTransformer):
         # insert instructions for the 'if' block before the 'else' block
         self.builder.position_at_start(bif)
         self.visit_before(node.yesbody, belse)      
-
-        with open("dbg.txt", "a") as f:
-            f.write(f"{self.builder.block}\n")
-            f.write(f"{self.builder.module}\n")
     
         self.builder.branch(bend)
 

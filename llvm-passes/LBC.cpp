@@ -50,7 +50,8 @@ inline bool isConstPtr(Value* v, Value** size = nullptr){
 }
 
 inline bool isOrigin(Value* v){
-    return dyn_cast<LoadInst>(v) || dyn_cast<AllocaInst>(v) || isConstPtr(v) || dyn_cast<Argument>(v) || dyn_cast<CallInst>(v);
+    return dyn_cast<LoadInst>(v) || dyn_cast<AllocaInst>(v) || isConstPtr(v) || dyn_cast<Argument>(v) 
+            || dyn_cast<CallInst>(v) || dyn_cast<PHINode>(v);
 }
 /*
     TODO CHECK
@@ -70,6 +71,7 @@ Value &getPointerOrigin(Value* v){
     return *v;
 }
 
+
 Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> fnClones){
     Value *V = &v;
     Argument* arg;
@@ -86,7 +88,9 @@ Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> fnClo
         return ConstantInt::get(Int32Ty, 8192, true);
     }
     else if((arg = dyn_cast<Argument>(V)) && arg->getType()->isPointerTy() && (f = arg->getParent())){
-        if(f->getName().equals("main")) return f->getArg(0); // todo make argc + 1 if needed
+        if(f->getName().equals("main")){
+           
+        }
         else{
             auto it = fnClones.find(f);
             if(it != fnClones.end()) {
@@ -104,6 +108,31 @@ Value* getPointerElemNum(Value &v, DenseMap<Function*, DenseMap<int, int>> fnClo
     return NULL;
 }
 
+
+PHINode* addSizePhi(PHINode* phi, DenseMap<PHINode*, PHINode*> &annotatedPhis, DenseMap<Function *, DenseMap<int, int>> &fnClones){
+
+    auto annotatedPhiEntry = annotatedPhis.find(phi);
+    if(annotatedPhiEntry != annotatedPhis.end()) return (*annotatedPhiEntry).second;
+    
+    SmallVector<Value*, 5> sizes;
+    for(Use& U: phi->incoming_values()){
+        Value* v = U.get();
+
+        if(PHINode* inPhi = dyn_cast<PHINode>(v)) sizes.push_back(addSizePhi(inPhi, annotatedPhis, fnClones));
+        else if(Value* elemNum = getPointerElemNum(getPointerOrigin(v) ,fnClones)) sizes.push_back(v);
+        else ERROR("Error when annotating pointer phi node, couldnt find pointer size");
+    }
+
+    PHINode* sizePhi = PHINode::Create(Type::getInt32Ty(phi->getContext()), phi->getNumOperands());
+    for(unsigned i = 0; i < sizes.size(); i++) {
+        sizePhi->setIncomingValueForBlock(phi->getIncomingBlock(i), sizes[i]);
+    }
+    phi->insertAfter(sizePhi);
+
+    annotatedPhis.try_emplace(phi, sizePhi);
+    return sizePhi;
+}
+
 bool BoundsChecker::runOnModule(Module &M) {
     LLVMContext &ctx = M.getContext();
     Type *Int32Ty = Type::getInt32Ty(ctx);
@@ -114,27 +143,20 @@ bool BoundsChecker::runOnModule(Module &M) {
     DenseMap<Function*, DenseMap<int, int>> fnClones;
 
     bool changed = false;
-
-    SmallVector<Function*, 15> cloneCandidates;
     for (Function &F : M) {
-        if(shouldInstrument(&F) && !F.getName().equals("main")){
-            cloneCandidates.push_back(&F);
-        }
-    }
 
-    for(auto* elem: cloneCandidates){
-        LOG_LINE("clone candidate: " << elem->getName());
-    }
+        if(!shouldInstrument(&F) || F.getName().equals("main"))
+            continue;
+        
 
-    for (Function* F : cloneCandidates) {
         DenseMap<int, int> ptrSize;
         SmallVector<Type*, 5> newArgsTypes;
     
         //find pointer arguments
         unsigned pointers = 0;
-        for(Argument &arg: F->args()){
+        for(Argument &arg: F.args()){
             if(arg.getType()->isPointerTy()){
-                ptrSize.try_emplace(arg.getArgNo(), pointers + F->arg_size());
+                ptrSize.try_emplace(arg.getArgNo(), pointers + F.arg_size());
                 pointers++;
 
                 newArgsTypes.push_back(Int32Ty);
@@ -147,12 +169,27 @@ bool BoundsChecker::runOnModule(Module &M) {
 
             //clone function
             SmallVector<Argument*, 10> cloneArgs;
-            Function* cloneFn = addParamsToFunction(F, ArrayRef<Type*>(newArgsTypes), cloneArgs);
+            Function* cloneFn = addParamsToFunction(&F, ArrayRef<Type*>(newArgsTypes), cloneArgs);
             fnClones.try_emplace(cloneFn, ptrSize);
 
             //add cloned fn
-            clonedFns.try_emplace(F, cloneFn); 
+            clonedFns.try_emplace(&F, cloneFn); 
         }
+    }
+
+    //here do phi stuff
+    for(Function &F : M){
+        if (!shouldInstrument(&F))
+            continue;
+
+        SmallVector<PHINode*, 8> ptrPhis;
+        PHINode* phi;
+        for(Instruction &I: instructions(F)){
+            if((phi = dyn_cast<PHINode>(&I)) && phi->getType()->isPointerTy()) ptrPhis.push_back(phi);
+        }
+
+        DenseMap<PHINode*, PHINode*> annotatedPhis;
+        for(PHINode* phi : ptrPhis) addSizePhi(phi, annotatedPhis, fnClones);
     }
 
     for (Function &F : M) {
@@ -219,7 +256,6 @@ bool BoundsChecker::runOnModule(Module &M) {
                 Value* arraySize = getPointerElemNum(orig, fnClones);
 
                 //todo check if orig is argc
-                LOG_LINE("acc offset for: " << I << " is " << accOffset);
             
                 changed |= accOffset && arraySize;
 
